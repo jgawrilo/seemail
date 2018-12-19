@@ -20,11 +20,12 @@ def create_bot_account_post(user):  # noqa: E501
 
     :rtype: bool
     """
+    res_codes ={True: "Success", False: "Failed"}
     if connexion.request.is_json:
         user = User.from_dict(connexion.request.get_json())  # noqa: E501
 
     res = bots_r.set(user, 1)
-    return 'do some magic!'
+    return res_codes[res]
 
 
 def get_all_users():  # noqa: E501
@@ -35,7 +36,15 @@ def get_all_users():  # noqa: E501
 
     :rtype: List[User]
     """
-    return 'do some magic!'
+    ## Not sure if this will work on all email implementations. 
+    ## Needs location of mailboxes on server, and permission to access that location
+    users = os.listdir('/home/user-data/mail/mailboxes/chunkman.com/')
+    # Get bots to exclude from the list
+    bots = []
+    for key in bots_r.scan_iter():
+        bots.append(key)
+    users = list(set(users) - set(bots))
+    return users
 
 
 def monitor_users_get(email_addresses):  # noqa: E501
