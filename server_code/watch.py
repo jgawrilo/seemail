@@ -21,10 +21,12 @@ class Watcher(FileSystemEventHandler):
             transformed = transform_email(mail_dict)
             print(json.dumps(transformed,indent=2))
             watched_emails = [x for x in r.scan_iter()]
+            print(watched_emails)
             send_to_kafka = False
             for field in ["sent_to", "cc", "bcc"]:
                 for recipient in transformed[field]:
-                    if recipient in watched_emails:
+                    print(recipient['email'].encode('utf-8'))
+                    if recipient['email'].encode('utf-8') in watched_emails:
                         send_to_kafka = True
                         break
                 # Don't need to check other fields if we already have a match
@@ -32,6 +34,7 @@ class Watcher(FileSystemEventHandler):
                     break
             if send_to_kafka:
                 producer.send("email", transformed)
+                producer.flush()
 
 def parse_attach(x):
     if 'content' in x:
