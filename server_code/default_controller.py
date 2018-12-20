@@ -24,6 +24,9 @@ def create_bot_account_post(user):  # noqa: E501
     if connexion.request.is_json:
         user = User.from_dict(connexion.request.get_json())  # noqa: E501
 
+    # Generate a password and create the actual email account
+
+    # Add to our Redis bot account db
     res = bots_r.set(user, 1)
     return res_codes[res]
 
@@ -38,8 +41,13 @@ def get_all_users():  # noqa: E501
     """
     ## Not sure if this will work on all email implementations. 
     ## Needs location of mailboxes on server, and permission to access that location
-    users = os.listdir('/home/user-data/mail/mailboxes/chunkman.com/')
-    # Get bots to exclude from the list
+    users = []
+    domains = os.listdir('/home/user-data/mail/mailboxes')
+    for domain in domains:
+        temp_users = os.listdir('/home/user-data/mail/mailboxes/chunkman.com/')
+        for name in temp_users:
+            users.append("{}@{}".format(name, domain).encode('utf-8'))
+    # Get bots to exclude, we only want to return real users
     bots = []
     for key in bots_r.scan_iter():
         bots.append(key)
@@ -75,7 +83,11 @@ def remove_bot_account_get(email_addresses):  # noqa: E501
 
     :rtype: bool
     """
-    return 'do some magic!'
+    # Delete account from Redis bot account db
+    for address in email_addresses:
+        res = bots_r.delete(address)
+    # Actually remove the email account? Or leave it for later analysis?
+    return res_codes[res]
 
 
 def request_mail_history_get(email_addresses, request_key, back_to_iso_date_string):  # noqa: E501
