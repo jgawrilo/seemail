@@ -178,7 +178,15 @@ def request_send_mail_post(email):  # noqa: E501
     recipients = email['sent_to'] + email['sent_cc'] + email['sent_bcc']
     msg['To'] = email['sent_to']
     msg['CC'] = email['sent_cc']
+    if email['reply_to_id'] != '':
+        msg['In-Reply-To'] = email['reply_to_id']
     msg['Subject'] = email['subject']
+    
+    # Add additional headers
+    for header in email['headers']:
+        if header['key'] not in msg:
+            msg.add_header(header['key'], header['value'])
+
     msg.attach(MIMEText(email['body']))
 
     # Handle attachements
@@ -188,7 +196,6 @@ def request_send_mail_post(email):  # noqa: E501
         part['Content-Disposition'] = 'attachment; filename="%s"' % basename(f)
         msg.attach(part)
 
-from email.mime.multipart import MIMEMultipart
     s.sendmail(email['sent_from'], recipients, msg.as_string())
     s.close()
     return True
