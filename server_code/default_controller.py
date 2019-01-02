@@ -175,9 +175,13 @@ def request_send_mail_post(email):  # noqa: E501
     s = smtplib.SMTP("localhost:smtp")
     # Build MIME email from email object? Need to double check input format
     msg = MIMEMultipart()
-    recipients = email['sent_to'] + email['sent_cc'] + email['sent_bcc']
-    msg['To'] = email['sent_to']
-    msg['CC'] = email['sent_cc']
+    recipients = []
+    for field in ('sent_to', 'sent_cc', 'sent_bcc'):
+    	recipients += [lambda x: x['email_address'] for x in email['{}'.format(field)]]
+    msg['To'] = [lambda x: x['email_address'] for x in email['sent_to']]
+    msg['CC'] = [lambda x: x['email_address'] for x in email['sent_cc']]
+    msg['From'] = "{} {} <{}>".format(email['sent_from']['first_name'], 
+        email['sent_from']['last_name'], email['sent_from']['email_address'])
     if email['reply_to_id'] != '':
         msg['In-Reply-To'] = email['reply_to_id']
     msg['Subject'] = email['subject']
@@ -196,7 +200,7 @@ def request_send_mail_post(email):  # noqa: E501
         part['Content-Disposition'] = 'attachment; filename="%s"' % basename(f)
         msg.attach(part)
 
-    s.sendmail(email['sent_from'], recipients, msg.as_string())
+    s.sendmail(email['sent_from']['email_address'], recipients, msg.as_string())
     s.close()
     return True
 
