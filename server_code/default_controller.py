@@ -16,7 +16,9 @@ from glob import glob
 from kafka import KafkaProducer
 
 import smtplib
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 # mailinabox management functions
 import sys
@@ -173,8 +175,23 @@ def request_send_mail_post(email):  # noqa: E501
     s = smtplib.SMTP("localhost:smtp")
     # Build MIME email from email object? Need to double check input format
     msg = MIMEMultipart()
-    s.sendmail(from_address, to_addresses, msg.as_string())
-    return 'do some magic!'
+    recipients = email['sent_to'] + email['sent_cc'] + email['sent_bcc']
+    msg['To'] = email['sent_to']
+    msg['CC'] = email['sent_cc']
+    msg['Subject'] = email['subject']
+    msg.attach(MIMEText(email['body']))
+
+    # Handle attachements
+    for a in email['attachments']:
+        with open(a['name'], 'rb') as f:
+            part = MIMEApplication(f.read(), Name=os.path.basename(f))
+        part['Content-Disposition'] = 'attachment; filename="%s"' % basename(f)
+        msg.attach(part)
+
+from email.mime.multipart import MIMEMultipart
+    s.sendmail(email['sent_from'], recipients, msg.as_string())
+    s.close()
+    return True
 
 
 def unmonitor_users_get(email_addresses):  # noqa: E501
