@@ -88,7 +88,9 @@ def get_all_users():  # noqa: E501
     for key in deactivated_bots_r.scan_iter():
         bots.append(key)
     users = list(set(users) - set(bots))
-    return users
+    # Decode from bytes to string for JSON encoding
+    decoded_users = [x.decode('utf-8') for x in users]
+    return decoded_users
 
 
 def monitor_users_get(email_addresses):  # noqa: E501
@@ -144,19 +146,24 @@ def request_mail_history_get(email_addresses, request_key, back_to_iso_date_stri
 
     :rtype: List[bool]
     """
+    res = []
     producer = KafkaProducer(bootstrap_servers='localhost:9092',value_serializer=lambda v: json.dumps(v).encode('utf-8'))
     for address in email_addresses:
-        user = address.split('@')[0]
-        domain = address.split('@')[1]
-        filelist = glob('/home/user-data/mail/mailboxes/{}/{}/*/*'.format(domain, user))
-        for filename in filelist:    
-            mail = "".join(open(filename).readlines())
-            mail_dict = imbox.parser.parse_email(mail)
-            # Need to decide whether to put transform function in this file or other
-            transformed = transform_email(mail_dict)
-            producer.send("history", transformed)
-            producer.flush()
-    return 'do some magic!'
+        try:
+            user = address.split('@')[0]
+            domain = address.split('@')[1]
+            filelist = glob('/home/user-data/mail/mailboxes/{}/{}/*/*'.format(domain, user))
+            for filename in filelist:    
+                mail = "".join(open(filename).readlines())
+                mail_dict = imbox.parser.parse_email(mail)
+                # Need to decide whether to put transform function in this file or other
+                transformed = transform_email(mail_dict)
+                producer.send("history", transformed)
+                producer.flush()
+                res.append(True)
+        except:
+            res.append(False)
+    return res
 
 
 def request_send_mail_post(email):  # noqa: E501
@@ -177,9 +184,9 @@ def request_send_mail_post(email):  # noqa: E501
     msg = MIMEMultipart()
     recipients = []
     for field in ('sent_to', 'sent_cc', 'sent_bcc'):
-    	recipients += [lambda x: x['email_address'] for x in email['{}'.format(field)]]
-    msg['To'] = [lambda x: x['email_address'] for x in email['sent_to']]
-    msg['CC'] = [lambda x: x['email_address'] for x in email['sent_cc']]
+    	recipients += [x['email_address'] for x in email['{}'.format(field)]]
+    msg['To'] = [x['email_address'] for x in email['sent_to']]
+    msg['CC'] = [x['email_address'] for x in email['sent_cc']]
     msg['From'] = "{} {} <{}>".format(email['sent_from']['first_name'], 
         email['sent_from']['last_name'], email['sent_from']['email_address'])
     if email['reply_to_id'] != '':
