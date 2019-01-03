@@ -14,6 +14,7 @@ import json
 import os
 from glob import glob
 from datetime import datetime
+import logging
 
 from kafka import KafkaProducer
 
@@ -42,26 +43,37 @@ def create_bot_account_post(user):  # noqa: E501
     :rtype: bool
     """
     bots_r = redis.StrictRedis(host='localhost', port=6379, db=2)
-    responses = {}
-    res_codes = {True: "Success", False: "Failed"}
+    deactivated_bots_r = redis.StrictRedis(host='localhost', port=6379, db=3)
     if connexion.request.is_json:
         user = User.from_dict(connexion.request.get_json())  # noqa: E501
 
     # Load mailinabox env variables
     env = utils.load_environment()
 
+    # If we're reactivating a deactivated bot account, delete it from the deactivated list
+    if user.email_address.encode('utf-8') in deactivated_bots_r.scan_iter():
+        deactivated_bots_r.delete(user.email_address)
+
+    # Load bot credentials file
+    with open('/home/rosteen/seemail/server_code/bcr.json', 'r') as f:
+        creds = json.load(f)
+
     # Generate a password and create the actual email account
-    pw = generate_password()
+    if user.email_address in creds:
+        pwd = creds[user.email_address]
+    else:
+        pwd = generate_password()
+        creds[user.email_address] = pwd
+        with open('/home/rosteen/seemail/server_code/bcr.json', 'w') as f:
+            json.dump(creds, f)
 
     # Add mailbox for bot
-    res = mailconfig.add_mail_user(user, pwd, "", env)
-    reponses['mailbox'] = res
+    res = mailconfig.add_mail_user(user.email_address, pwd, "", env)
 
     # Add to our Redis bot account db
-    res = bots_r.set(user, 1)
-    responses['redis'] = res_codes[res]
+    res = bots_r.set(user.email_address, 1)
     
-    return responses
+    return res
 
 
 def get_all_users():  # noqa: E501
@@ -92,6 +104,7 @@ def get_all_users():  # noqa: E501
     users = list(set(users) - set(bots))
     # Decode from bytes to string for JSON encoding
     decoded_users = [x.decode('utf-8') for x in users]
+    logging.info("Returned list of users")
     return decoded_users
 
 
@@ -167,6 +180,7 @@ def request_mail_history_get(email_addresses, request_key, back_to_iso_date_stri
                     continue
                 mail = "".join(open(filename).readlines())
                 mail_dict = imbox.parser.parse_email(mail)
+                mail_dict['request_key'] = request_key # Add identifier to email
                 # Need to decide whether to put transform function in this file or other
                 transformed = transform_email(mail_dict)
                 producer.send("history", transformed)
