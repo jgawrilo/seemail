@@ -13,6 +13,8 @@ import string
 import json
 import os
 from glob import glob
+from datetime import datetime
+
 from kafka import KafkaProducer
 
 import smtplib
@@ -147,13 +149,22 @@ def request_mail_history_get(email_addresses, request_key, back_to_iso_date_stri
     :rtype: List[bool]
     """
     res = []
+    # Should add a check that the date is in the correct format, if there isn't one higher in the API definition
+    in_dt = back_to_iso_date_string.split("T")[0].replace('-', '')
+    back_to_unix = int((datetime.strptime(in_dt, '%Y%m%d')-datetime(1970,1,1)).total_seconds())
+
     producer = KafkaProducer(bootstrap_servers='localhost:9092',value_serializer=lambda v: json.dumps(v).encode('utf-8'))
+    
     for address in email_addresses:
         try:
             user = address.split('@')[0]
             domain = address.split('@')[1]
             filelist = glob('/home/user-data/mail/mailboxes/{}/{}/*/*'.format(domain, user))
-            for filename in filelist:    
+            for filename in filelist:
+                # Skip if email timestamp before limit
+                ts = int(filename.split('/')[-1].split('.')[0])
+                if ts < back_to_unix:
+                    continue
                 mail = "".join(open(filename).readlines())
                 mail_dict = imbox.parser.parse_email(mail)
                 # Need to decide whether to put transform function in this file or other
