@@ -44,6 +44,7 @@ def create_bot_account_post(user):  # noqa: E501
     """
     bots_r = redis.StrictRedis(host='localhost', port=6379, db=2)
     deactivated_bots_r = redis.StrictRedis(host='localhost', port=6379, db=3)
+    reactivating = False
     if connexion.request.is_json:
         user = User.from_dict(connexion.request.get_json())  # noqa: E501
 
@@ -53,6 +54,7 @@ def create_bot_account_post(user):  # noqa: E501
     # If we're reactivating a deactivated bot account, delete it from the deactivated list
     if user.email_address.encode('utf-8') in deactivated_bots_r.scan_iter():
         deactivated_bots_r.delete(user.email_address)
+        reactivating = True
 
     # Load bot credentials file
     with open('/home/rosteen/seemail/server_code/bcr.json', 'r') as f:
@@ -72,7 +74,12 @@ def create_bot_account_post(user):  # noqa: E501
 
     # Add to our Redis bot account db
     res = bots_r.set(user.email_address, 1)
-    
+
+    if reactivating is False:
+        logging.info("Added bot account {}".format(user.email_address))
+    else:
+        logging.info("Reactivated bot account {}".format(user.email_address))    
+
     return res
 
 
@@ -119,11 +126,13 @@ def monitor_users_get(email_addresses):  # noqa: E501
     :rtype: List[bool]
     """
     users_r = redis.StrictRedis(host='localhost', port=6379, db=1)
-    res_codes = {True: "Success", False: "Failed"}
     results = []
     for address in email_addresses:
         res = users_r.set(address, 1)
-        results.append(res_codes[res])
+        results.append(res)
+    
+    logging.info("Added list of email addresses to monitor: {}".format(email_addresses))
+
     return results
 
 
@@ -143,8 +152,8 @@ def remove_bot_account_get(email_addresses):  # noqa: E501
     for address in email_addresses:
         res = bots_r.delete(address)
         res2 = deactivated_bots_r.set(address, 1)
-    # Actually remove the email account? Or leave it for later analysis?
-    return res_codes[res]
+    logging.info("Deactivated list of bot accounts: {}".format(email_addresses))
+    return res
 
 
 def request_mail_history_get(email_addresses, request_key, back_to_iso_date_string):  # noqa: E501
@@ -186,8 +195,10 @@ def request_mail_history_get(email_addresses, request_key, back_to_iso_date_stri
                 producer.send("history", transformed)
                 producer.flush()
                 res.append(True)
-        except:
+            logging.info("Sent email history for {}".format(address))
+        except Exception as e:
             res.append(False)
+            logging.error("Unable to send email history for {}:\n    {}".format(address, e))
     return res
 
 
@@ -209,31 +220,32 @@ def request_send_mail_post(email):  # noqa: E501
     msg = MIMEMultipart()
     recipients = []
     for field in ('sent_to', 'sent_cc', 'sent_bcc'):
-    	recipients += [x['email_address'] for x in email['{}'.format(field)]]
-    msg['To'] = [x['email_address'] for x in email['sent_to']]
-    msg['CC'] = [x['email_address'] for x in email['sent_cc']]
-    msg['From'] = "{} {} <{}>".format(email['sent_from']['first_name'], 
-        email['sent_from']['last_name'], email['sent_from']['email_address'])
+    	recipients += [x.email_address for x in email.field]
+    msg['To'] = [x.email_address for x in email.sent_to]
+    msg['CC'] = [x.email_address for x in email.sent_cc]
+    msg['From'] = "{} {} <{}>".format(email.sent_from.first_name, 
+        email.sent_from.last_name, email.sent_from.email_address)
     if email['reply_to_id'] != '':
-        msg['In-Reply-To'] = email['reply_to_id']
-    msg['Subject'] = email['subject']
+        msg['In-Reply-To'] = email.reply_to_id
+    msg['Subject'] = email.subject
     
     # Add additional headers
-    for header in email['headers']:
-        if header['key'] not in msg:
-            msg.add_header(header['key'], header['value'])
+    for header in email.headers:
+        if header.key not in msg:
+            msg.add_header(header.key, header.value)
 
     msg.attach(MIMEText(email['body']))
 
     # Handle attachements
-    for a in email['attachments']:
-        with open(a['name'], 'rb') as f:
+    for a in email.attachments:
+        with open(a.name, 'rb') as f:
             part = MIMEApplication(f.read(), Name=os.path.basename(f))
         part['Content-Disposition'] = 'attachment; filename="%s"' % basename(f)
         msg.attach(part)
 
-    s.sendmail(email['sent_from']['email_address'], recipients, msg.as_string())
+    s.sendmail(email.sent_from.email_address, recipients, msg.as_string())
     s.close()
+    logging.info("Sent email from {} to {}".format(email.sent_to, email.sent_from))
     return True
 
 
@@ -253,4 +265,5 @@ def unmonitor_users_get(email_addresses):  # noqa: E501
     for address in email_addresses:
         res = users_r.delete(address)
         results.append(res_codes[res])
+    logging.info("Unmonitored list of users: {}".format(email_addresses))
     return results
