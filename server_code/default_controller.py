@@ -110,7 +110,7 @@ def get_all_users():  # noqa: E501
         bots.append(key)
     users = list(set(users) - set(bots))
     # Decode from bytes to string for JSON encoding
-    decoded_users = [x.decode('utf-8') for x in users]
+    decoded_users = [User(email_address = x.decode('utf-8')) for x in users]
     logging.info("Returned list of users")
     return decoded_users
 
