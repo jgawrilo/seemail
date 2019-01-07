@@ -87,6 +87,10 @@ def create_bot_account_post(user):  # noqa: E501
         cur2.execute('insert into names values  ({}, "{}", "{}")'.format(user_id, user.first_name, user.last_name))
     except sqlite3.IntegrityError:
         pass # User already in the names DB, might hit this when reactivating an existing bot
+    cur1.close()
+    cur2.close()
+    conn1.close()
+    conn2.close()
 
     if reactivating is False:
         logging.info("Added bot account {}".format(user.email_address))
@@ -124,6 +128,18 @@ def get_all_users():  # noqa: E501
     users = list(set(users) - set(bots))
     # Decode from bytes to string for JSON encoding
     decoded_users = [User(email_address = x.decode('utf-8')) for x in users]
+    # Get first and last names
+    conn = sql.connect("/home/user-data/mail/user_names.sqlite")
+    cur = conn.cursor()
+    for i in range(0, len(decoded_users)):
+        try:
+            decoded_users[i].first_name = cur.execute("select first_name from names where email = {}".format(decoded_users[i].email_address)).fetchone()[0]
+            decoded_users[i].last_name = cur.execute("select last_name from names where email = {}".format(decoded_users[i].email_address)).fetchone()[0]
+        except:
+            logging.warning("No first or last name found for {}".format(decoded_users[i].email_address))
+    cur.close()
+    conn.close()
+
     logging.info("Returned list of users")
     
     return decoded_users
