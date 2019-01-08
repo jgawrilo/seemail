@@ -7,11 +7,12 @@ import json
 import requests
 import redis
 import random
+import sqlite3 as sql
 from datetime import datetime
 from nltk.corpus import gutenberg
 
 def clean_sentences(sentences):
-  return sentences.replace(" ,", "").replace(" ' ", "'").replace(" .", "").replace(" ?", "?").replace(" :", ":")
+  return sentences.replace(" ,", "").replace(" ' ", "'").replace(" .", ".").replace(" ?", "?").replace(" :", ":")
 
 def send_email():
     bots_r = redis.StrictRedis(host='localhost', port=6379, db=2)
@@ -19,23 +20,48 @@ def send_email():
     for b in bots_r.scan_iter():
         active_bots.append(b.decode('utf-8'))
     random.shuffle(active_bots)
-    print(active_bots)
-    sender = {"email_address": active_bots[0]}
-    receivers = [{"email_address": active_bots[1]},]
+
+    # Get first and last names
+    names = {}
+    conn = sql.connect('/home/user-data/mail/user_names.sqlite')
+    cur = conn.cursor()
+    cur.execute("select * from names")
+    rows = cur.fetchall()
+    print(rows)
+    for row in rows:
+        names[row[3]] = {"first": row[1], "last": row[2]}
+
+    print(names)
+    sender = {"email_address": active_bots[0], 
+              "first_name": names[active_bots[0]]["first"],
+              "last_name": names[active_bots[0]]["last"]}
+    receivers = [
+                 {"email_address": active_bots[1],
+                  "first_name": names[active_bots[1]]["first"],
+                  "last_name": names[active_bots[1]]["last"]
+                 },
+                ]
 
     all_sents = gutenberg.sents('milton-paradise.txt')
     start = random.randint(0, len(all_sents)-10)
     subj = clean_sentences(" ".join(all_sents[start]))
-    body = ''
-    for i in range(start+1, random.randint(3,10)):
-        body += " ".join(all_sents[i])
+    body = []
+    for i in range(start+1, random.randint(start+3,start+6)):
+        body.append(" ".join(all_sents[i]))
+        print(body)
+    body = " ".join(body)
     body = clean_sentences(body)
+    print(body)
 
     # Decide whether to cc anyone
     if random.random() < 0.8:
         cc = []
     else:
-        cc = [{"email_address": active_bots[2]},]
+        cc = [{"email_address": active_bots[2],
+               "first_name": names[active_bots[2]]["first"],
+               "last_name": names[active_bots[2]]["last"]
+              },
+             ]
 
     attachments = []
 
@@ -66,7 +92,11 @@ if __name__ == "__main__":
                         filename = '/var/log/emailSpooferDaemon.log')
     while True:
         # Check to see if it's daytime
-        send_email()
-        time_to_sleep = random.randint(1200,2400)
-        logging.info("Sending next email in {} minutes".format(time_to_sleep/60))
+        hour = int(datetime.now.strftime('%H'))
+        if hour >= 9 and hour <= 6:
+            send_email()
+            time_to_sleep = random.randint(1200,2400)
+            logging.info("Sending next email in {} minutes".format(time_to_sleep/60))
+        else:
+            time_to_sleep = 3600
         time.sleep(time_to_sleep)
