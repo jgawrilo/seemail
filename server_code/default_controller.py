@@ -16,6 +16,7 @@ from glob import glob
 from datetime import datetime
 import logging
 import sqlite3 as sql
+import base64
 
 from kafka import KafkaProducer
 
@@ -268,9 +269,8 @@ def request_send_mail_post(email):  # noqa: E501
 
     # Handle attachements
     for a in email.attachments:
-        with open(a.name, 'rb') as f:
-            part = MIMEApplication(f.read(), Name=os.path.basename(f))
-        part['Content-Disposition'] = 'attachment; filename="%s"' % basename(f)
+        part = MIMEApplication(base64.b64decode(a.base64_string), Name = a.name)
+        part['Content-Disposition'] = 'attachment; filename="{}"'.format(a.name)
         msg.attach(part)
 
     # Load bot credentials file
