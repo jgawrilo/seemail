@@ -84,8 +84,9 @@ def create_bot_account_post(user):  # noqa: E501
     cur2 = conn2.cursor()
     user_id = cur1.execute('select id from users where email="{}"'.format(user.email_address)).fetchone()[0]
     try:
-        cur2.execute('insert into names values  ({}, "{}", "{}")'.format(user_id, user.first_name, user.last_name))
-    except sqlite3.IntegrityError:
+        cur2.execute('insert into names values  ({}, "{}", "{}", "{}")'.format(user_id, 
+            user.first_name, user.last_name, user.email_address))
+    except sql.IntegrityError:
         pass # User already in the names DB, might hit this when reactivating an existing bot
     cur1.close()
     cur2.close()
@@ -182,7 +183,7 @@ def remove_bot_account_get(email_addresses):  # noqa: E501
         res = bots_r.delete(address)
         res2 = deactivated_bots_r.set(address, 1)
     logging.info("Deactivated list of bot accounts: {}".format(email_addresses))
-    return res
+    return True
 
 
 def request_mail_history_get(email_addresses, request_key, back_to_iso_date_string):  # noqa: E501
@@ -223,7 +224,7 @@ def request_mail_history_get(email_addresses, request_key, back_to_iso_date_stri
                 transformed = transform_email(mail_dict)
                 producer.send("history", transformed)
                 producer.flush()
-                res.append(True)
+            res.append(True)
             logging.info("Sent email history for {}".format(address))
         except Exception as e:
             res.append(False)
@@ -244,17 +245,17 @@ def request_send_mail_post(email):  # noqa: E501
     if connexion.request.is_json:
         email = Email.from_dict(connexion.request.get_json())  # noqa: E501
 
-    s = smtplib.SMTP("localhost:smtp")
+    s = smtplib.SMTP("localhost:587")
     # Build MIME email from email object? Need to double check input format
     msg = MIMEMultipart()
     recipients = []
-    for field in ('sent_to', 'sent_cc', 'sent_bcc'):
-    	recipients += [x.email_address for x in email.field]
-    msg['To'] = [x.email_address for x in email.sent_to]
-    msg['CC'] = [x.email_address for x in email.sent_cc]
+    for field in (email.sent_to, email.sent_cc, email.sent_bcc):
+    	recipients += [x.email_address for x in field]
+    msg['To'] = ', '.join([x.email_address for x in email.sent_to])
+    msg['CC'] = ', '.join([x.email_address for x in email.sent_cc])
     msg['From'] = "{} {} <{}>".format(email.sent_from.first_name, 
         email.sent_from.last_name, email.sent_from.email_address)
-    if email['reply_to_id'] != '':
+    if email.reply_to_id != '':
         msg['In-Reply-To'] = email.reply_to_id
     msg['Subject'] = email.subject
     
@@ -263,7 +264,7 @@ def request_send_mail_post(email):  # noqa: E501
         if header.key not in msg:
             msg.add_header(header.key, header.value)
 
-    msg.attach(MIMEText(email['body']))
+    msg.attach(MIMEText(email.body))
 
     # Handle attachements
     for a in email.attachments:
@@ -272,6 +273,15 @@ def request_send_mail_post(email):  # noqa: E501
         part['Content-Disposition'] = 'attachment; filename="%s"' % basename(f)
         msg.attach(part)
 
+    # Load bot credentials file
+    with open('/home/rosteen/seemail/server_code/bcr.json', 'r') as f:
+        creds = json.load(f)
+        pwd = creds[email.sent_from.email_address]
+    s.connect('localhost:587')
+    s.starttls()
+    s.login(email.sent_from.email_address, pwd)
+
+    # Send it!
     s.sendmail(email.sent_from.email_address, recipients, msg.as_string())
     s.close()
     logging.info("Sent email from {} to {}".format(email.sent_to, email.sent_from))
@@ -289,7 +299,7 @@ def unmonitor_users_get(email_addresses):  # noqa: E501
     :rtype: List[bool]
     """
     users_r = redis.StrictRedis(host='localhost', port=6379, db=1)
-    res_codes = {1: "Success", 0: "Failed"}
+    res_codes = {1: True, 0: False}
     results = []
     for address in email_addresses:
         res = users_r.delete(address)
