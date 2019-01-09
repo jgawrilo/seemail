@@ -89,6 +89,7 @@ def create_bot_account_post(user):  # noqa: E501
             user.first_name, user.last_name, user.email_address))
     except sql.IntegrityError:
         pass # User already in the names DB, might hit this when reactivating an existing bot
+    conn2.commit()
     cur1.close()
     cur2.close()
     conn1.close()

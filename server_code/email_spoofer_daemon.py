@@ -92,8 +92,8 @@ if __name__ == "__main__":
                         filename = '/var/log/emailSpooferDaemon.log')
     while True:
         # Check to see if it's daytime
-        hour = int(datetime.now.strftime('%H'))
-        if hour >= 9 and hour <= 6:
+        hour = int(datetime.now().strftime('%H'))
+        if hour >= 9 and hour <= 18:
             send_email()
             time_to_sleep = random.randint(1200,2400)
             logging.info("Sending next email in {} minutes".format(time_to_sleep/60))
