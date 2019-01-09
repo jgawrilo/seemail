@@ -323,6 +323,10 @@ def request_send_mail_post(email):  # noqa: E501
         email.sent_from.last_name, email.sent_from.email_address)
     if email.reply_to_id != '':
         msg['In-Reply-To'] = email.reply_to_id
+        msg['References'] = email.reply_to_id
+    elif email.forward_id != '':
+        msg['In-Reply-To'] = email.forward_id
+        msg['References'] = email.forward_id
     msg['Subject'] = email.subject
     
     # Add additional headers
