@@ -77,6 +77,28 @@ def transform_email(message, request_key = None):
 
     return email_json
 
+def check_email_for_addresses(transformed, addresses):
+    transformed = transform_email(mail_dict)
+    send_to_kafka = False
+    for field in ["sent_from", "sent_to", "cc"]:
+        for recipient in transformed[field]:
+            if recipient['email'].encode('utf-8') in addresses:
+                send_to_kafka = True
+                break
+        # Don't need to check other fields if we already have a match
+        if send_to_kafka:
+            break
+    # Search "Received" field for BCC'd users if we're not already sending
+    if not send_to_kafka:
+        for item in transformed["other"]["Received"]:
+            for email in addresses:
+                if re.search(email.decode('utf-8'), item) is not None:
+                    send_to_kafka = True
+                    break
+                if send_to_kafka:
+                    break
+    return send_to_kafka
+
 def create_bot_account_post(user):  # noqa: E501
     """Create a bot email account to send/receive messages from.
 
@@ -252,29 +274,27 @@ def request_mail_history_get(email_addresses, request_key, back_to_iso_date_stri
 
     producer = KafkaProducer(bootstrap_servers='localhost:9092',value_serializer=lambda v: json.dumps(v).encode('utf-8'))
     
-    for address in email_addresses:
-        try:
-            user = address.split('@')[0]
-            domain = address.split('@')[1]
-            filelist = glob('/home/user-data/mail/mailboxes/{}/{}/*/*'.format(domain, user))
-            for filename in filelist:
-                # Skip if email timestamp before limit
-                ts = int(filename.split('/')[-1].split('.')[0])
-                if ts < back_to_unix:
-                    continue
-                mail = "".join(open(filename).readlines())
-                mail_dict = imbox.parser.parse_email(mail)
-                #mail_dict['request_key'] = request_key # Add identifier to email
-                # Need to decide whether to put transform function in this file or other
-                transformed = transform_email(mail_dict, request_key)
+    try:
+        filelist = []
+        for folder in ('tmp', 'new', 'cur'):
+            filelist += glob('/var/archive/mail/{}/*'.format(folder))
+        for filename in filelist:
+            # Skip if email timestamp before limit
+            ts = int(filename.split('/')[-1].split('.')[0])
+            if ts < back_to_unix:
+                continue
+            mail = "".join(open(filename).readlines())
+            mail_dict = imbox.parser.parse_email(mail)
+            transformed = transform_email(mail_dict, request_key)
+            if check_email_for_addresses(transformed, email_addresses):
                 producer.send("history", transformed)
                 producer.flush()
-            res.append(True)
-            logging.info("Sent email history for {}".format(address))
-        except Exception as e:
-            raise
-            res.append(False)
-            logging.error("Unable to send email history for {}:\n    {}".format(address, e))
+        res.append(True)
+        logging.info("Sent email history for {}".format(address))
+    except Exception as e:
+        raise
+        res.append(False)
+        logging.error("Unable to send email history for {}:\n    {}".format(address, e))
     return res
 
 
