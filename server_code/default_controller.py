@@ -10,6 +10,7 @@ from swagger_server import util
 import imbox
 import random
 import string
+import re
 import json
 import os
 from glob import glob
@@ -78,11 +79,10 @@ def transform_email(message, request_key = None):
     return email_json
 
 def check_email_for_addresses(transformed, addresses):
-    transformed = transform_email(mail_dict)
     send_to_kafka = False
     for field in ["sent_from", "sent_to", "cc"]:
         for recipient in transformed[field]:
-            if recipient['email'].encode('utf-8') in addresses:
+            if recipient['email'] in addresses:
                 send_to_kafka = True
                 break
         # Don't need to check other fields if we already have a match
@@ -92,7 +92,7 @@ def check_email_for_addresses(transformed, addresses):
     if not send_to_kafka:
         for item in transformed["other"]["Received"]:
             for email in addresses:
-                if re.search(email.decode('utf-8'), item) is not None:
+                if re.search(email, item) is not None:
                     send_to_kafka = True
                     break
                 if send_to_kafka:
@@ -290,11 +290,11 @@ def request_mail_history_get(email_addresses, request_key, back_to_iso_date_stri
                 producer.send("history", transformed)
                 producer.flush()
         res.append(True)
-        logging.info("Sent email history for {}".format(address))
+        logging.info("Sent email history for {}".format(email_addresses))
     except Exception as e:
         raise
         res.append(False)
-        logging.error("Unable to send email history for {}:\n    {}".format(address, e))
+        logging.error("Error sending email history for {}:\n    {}".format(email_addresses, e))
     return res
 
 
