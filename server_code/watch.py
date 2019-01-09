@@ -1,4 +1,5 @@
 import sys
+import re
 import time
 import logging
 import email
@@ -8,6 +9,7 @@ from watchdog.events import LoggingEventHandler, FileSystemEventHandler
 import imbox
 import redis
 from kafka import KafkaProducer
+from datetime import datetime
 
 r = redis.StrictRedis(host='localhost', port=6379, db=1)
 producer = KafkaProducer(bootstrap_servers='localhost:9092',value_serializer=lambda v: json.dumps(v).encode('utf-8'))
@@ -15,24 +17,33 @@ producer = KafkaProducer(bootstrap_servers='localhost:9092',value_serializer=lam
 class Watcher(FileSystemEventHandler):
     def on_created(self,event):
         if "new" in event.src_path:
-            print(event.src_path)
+            print("{} - {}".format(datetime.now().strftime("%Y-%m-%d %H:%M%S"), event.src_path))
             mail = "".join(open(event.src_path).readlines())
             mail_dict = imbox.parser.parse_email(mail)
             transformed = transform_email(mail_dict)
             print(json.dumps(transformed,indent=2))
             watched_emails = [x for x in r.scan_iter()]
-            print(watched_emails)
             send_to_kafka = False
-            for field in ["sent_to", "cc", "bcc"]:
+            for field in ["sent_from", "sent_to", "cc"]:
                 for recipient in transformed[field]:
-                    print(recipient['email'].encode('utf-8'))
                     if recipient['email'].encode('utf-8') in watched_emails:
                         send_to_kafka = True
                         break
                 # Don't need to check other fields if we already have a match
                 if send_to_kafka:
                     break
+            # Search "Received" field for BCC'd users
+            for item in transformed["other"]["Received"]:
+                for email in watched_emails:
+                    if re.search(email.decode('utf-8'), item) is not None:
+                        send_to_kafka = True
+                        break
+                    if send_to_kafka:
+                        break
+
+            # Push the email to the Kafka topic
             if send_to_kafka:
+                print("Sending to Kafka")
                 producer.send("email", transformed)
                 producer.flush()
 
