@@ -20,6 +20,7 @@ import base64
 
 from kafka import KafkaProducer
 
+import email
 import smtplib
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
@@ -33,6 +34,48 @@ import mailconfig
 
 def generate_password(length = 18):
     return ''.join([random.choice(string.ascii_letters + string.digits ) for n in range(length)])
+
+def parse_attach(x):
+    if 'content' in x:
+        #print(type(x["content"]))
+        x["content"] = str(x["content"].getvalue())
+    return x
+
+def fix_body(x):
+    try:
+        return str(x.decode("utf-8"))
+    except:
+        return x
+
+def transform_email(message, request_key = None):
+    email_json = {}
+    if request_key is not None:
+        email_json["request_key"] = request_key
+    email_json["sent_from"] = message.sent_from
+    email_json["sent_to"] = list(message.sent_to)
+    email_json["cc"] = list(message.cc)
+    email_json["bcc"] = list(message.bcc)
+    email_json["message_id"] = message.message_id
+    email_json["parsed_date"] = message.parsed_date.isoformat()
+
+    #email_json["flags"] = list(map(lambda x: str(x.decode("utf-8")),message.flags))
+    email_json["date"] = message.date
+    email_json["body"] = {}
+    email_json["body"]["plain"] = list(map(fix_body,message.body["plain"]))
+    email_json["body"]["html"] = list(map(fix_body,message.body["html"]))
+    email_json["subject"] = message.subject
+    email_json["headers"] = message.headers
+    email_json["raw_email"] = message.raw_email
+    email_json["attachments"] = list(map(parse_attach,message.attachments))
+
+    # headers, body, attacments, raw_email
+    email_json["other"] = {}
+
+    ee = email.message_from_string(email_json["raw_email"])
+    for i,j in ee.items():
+        email_json["other"][i] = ee.get_all(i)
+
+    return email_json
 
 def create_bot_account_post(user):  # noqa: E501
     """Create a bot email account to send/receive messages from.
@@ -221,14 +264,15 @@ def request_mail_history_get(email_addresses, request_key, back_to_iso_date_stri
                     continue
                 mail = "".join(open(filename).readlines())
                 mail_dict = imbox.parser.parse_email(mail)
-                mail_dict['request_key'] = request_key # Add identifier to email
+                #mail_dict['request_key'] = request_key # Add identifier to email
                 # Need to decide whether to put transform function in this file or other
-                transformed = transform_email(mail_dict)
+                transformed = transform_email(mail_dict, request_key)
                 producer.send("history", transformed)
                 producer.flush()
             res.append(True)
             logging.info("Sent email history for {}".format(address))
         except Exception as e:
+            raise
             res.append(False)
             logging.error("Unable to send email history for {}:\n    {}".format(address, e))
     return res
