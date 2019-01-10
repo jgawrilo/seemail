@@ -16,7 +16,8 @@ producer = KafkaProducer(bootstrap_servers='localhost:9092',value_serializer=lam
 
 class Watcher(FileSystemEventHandler):
     def on_created(self,event):
-        if "new" in event.src_path:
+        # Catch new emails, but not swap files
+        if "new" in event.src_path and ".swp" not in event.src_path:
             print("{} - {}".format(datetime.now().strftime("%Y-%m-%d %H:%M%S"), event.src_path))
             mail = "".join(open(event.src_path).readlines())
             mail_dict = imbox.parser.parse_email(mail)
