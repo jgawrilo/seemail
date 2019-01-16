@@ -46,7 +46,7 @@ def send_email():
     start = random.randint(0, len(all_sents)-10)
     subj = clean_sentences(" ".join(all_sents[start]))
     body = []
-    for i in range(start+1, random.randint(start+3,start+6)):
+    for i in range(start+1, random.randint(start+2,start+4)):
         body.append(" ".join(all_sents[i]))
         print(body)
     body = " ".join(body)
@@ -54,7 +54,7 @@ def send_email():
     print(body)
 
     # Decide whether to cc anyone
-    if random.random() < 0.8:
+    if random.random() > 0.8:
         cc = []
     else:
         cc = [{"email_address": active_bots[2],
@@ -63,7 +63,11 @@ def send_email():
               },
              ]
 
+    # Decide whether to attach an image
     attachments = []
+    if random.random() > 0.8:
+        with open('Sombrero_PROMPT.png', "rb") as f:
+            attachments.append({"name": 'Sombrero_PROMPT.png', "base64_string": base64.b64encode(f.read()).decode('ascii')})
 
     email = {
          "sent_from": sender,
@@ -95,7 +99,7 @@ if __name__ == "__main__":
         hour = int(datetime.now().strftime('%H'))
         if hour >= 9 and hour <= 18:
             send_email()
-            time_to_sleep = random.randint(1200,2400)
+            time_to_sleep = random.randint(2400, 3600)
             logging.info("Sending next email in {} minutes".format(time_to_sleep/60))
         else:
             time_to_sleep = 3600
