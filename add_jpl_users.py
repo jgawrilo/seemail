@@ -42,15 +42,29 @@ def main(user_file):
         if args.folder:
             all_files = glob("{}/*/*.json".format(args.folder))
 
-    conn = sql.connect("")
+    conn = sql.connect("/home/user-data/mail/jpl_emails.sqlite")
     cur = conn.cursor()
 
     # Read email json data
     for email_file in all_files:
         jpl, attacker, utc_timestamp = parse_email(email_file)
         # Add the information I want to track to the database
-        stmt = "insert into abuse_emails (jpl, attacker, dt, filename) values ({}, {}, {}, {})".format(jpl,
-                attacker, email_dt, utc_timestamp)
+	stmt = "insert into jpl_addresses (address) values ({})".format(jpl)
+        cur.execute(stmt)
+
+        stmt = "insert into attacker_addresses (address) values ({})".format(attacker)
+        cur.execute(stmt)
+
+        stmt = "select id from jpl_addresses where address = {}".format(jpl)
+        jpl_id = cur.execute(stmt).fetchone()[0]
+        print(jpl_id)
+
+        stmt = "select id from attacker_addresses where address = {}".format(attacker)
+        attacker_id = cur.execute(stmt).fetchone()[0]
+        print(attacker_id)
+
+        stmt = '''insert into abuse_emails (jpl_email_id, attacker_email_id, timestamp, 
+               filename) values ({}, {}, {}, {})'''.format(jpl_id, attacker_id, email_dt, utc_timestamp)
         cur.execute(stmt)
         conn.commit()
 
