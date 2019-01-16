@@ -3,6 +3,7 @@ import argparse
 from glob import glob
 from datetime import datetime, timedelta
 import sqlite3 as sql
+import re
 
 def parse_email(fname):
     with open(fname, 'r') as f:
@@ -11,62 +12,55 @@ def parse_email(fname):
     # Parse out from and to addresses for the original email
     # Look in body section 0 1 or 2 for "email" keyword, then take the first one that
     # isn't the JPL address
-    jpl_email = email_json["header"]["from"] # "from" because we're seeing the forward
-    for i in email_json["body"]:
-        if "email" not in email_json["body"][i]:
+    email_addresses = []
+    #jpl_email = email_json["header"]["from"] # "from" because we're seeing the forward
+    for section in email_json["body"]:
+        if "email" not in section:
             continue
-        for j in email_json["body"][i]["email"]:
-            attacker_email = email_json["body"][i]["email"][j]
-            if attacker_email != jpl_email:
-                break
-
-    # Strip out things we don't want from the email addresses
-    attacker_email = attacker_email.replace("smtp.mailfrom=", "")
-
-    print("From: {}, To: {}".format(attacker_email, jpl_email))
+        for address in section["email"]:
+            if re.search("_", address) is not None:
+                print("Email address {} has an underscore in it".format(address))
+            email_addresses.append(address)
 
     # Record datetime of email send. Unfortunately it appears that we only have the
     # datetime of the forward, not the original email. DT originally in local time with
     # difference from UTC appended.
-    email_tz = int(email_json["header"]["to"]["date"][-6:-3])
-    email_dt = "-".join(email_json["header"]["to"]["date"].split("-")[0:-1])
-    email_dt = datetime.strptime(email_json["header"]["to"]["date"], "%Y-%m-%dT%H%M%%S")
+    email_tz = int(email_json["header"]["date"][-6:-3])
+    email_dt = "-".join(email_json["header"]["date"].split("-")[0:-1])
+    email_dt = datetime.strptime(email_dt, "%Y-%m-%dT%H:%M:%S")
     email_dt = email_dt - timedelta(hours=email_tz)
-    timestamp = email_dt - datetime(1970,1,1)).total_seconds()
+    timestamp = (email_dt - datetime(1970,1,1)).total_seconds()
 
-    return jpl_email, attacker_email, timestamp
+    return email_addresses, timestamp
 
 def main(user_file):
     # Get all email filenames
-    with open(args) as f:
-        if args.folder:
-            all_files = glob("{}/*/*.json".format(args.folder))
+    if args.folder:
+        all_files = glob("{}/*/*.json".format(args.folder))
 
     conn = sql.connect("/home/user-data/mail/jpl_emails.sqlite")
     cur = conn.cursor()
 
     # Read email json data
     for email_file in all_files:
-        jpl, attacker, utc_timestamp = parse_email(email_file)
-        # Add the information I want to track to the database
-	stmt = "insert into jpl_addresses (address) values ({})".format(jpl)
-        cur.execute(stmt)
+        print("Processing {}".format(email_file))
+        addresses, utc_timestamp = parse_email(email_file)
+        address_ids = []
 
-        stmt = "insert into attacker_addresses (address) values ({})".format(attacker)
-        cur.execute(stmt)
+        for address in addresses:
+            stmt = "insert into email_addresses (address) values ('{}')".format(address)
+            cur.execute(stmt)
 
-        stmt = "select id from jpl_addresses where address = {}".format(jpl)
-        jpl_id = cur.execute(stmt).fetchone()[0]
-        print(jpl_id)
+            stmt = "select rowid from email_addresses where address = '{}'".format(address)
+            address_ids.append(cur.execute(stmt).fetchone()[0])
 
-        stmt = "select id from attacker_addresses where address = {}".format(attacker)
-        attacker_id = cur.execute(stmt).fetchone()[0]
-        print(attacker_id)
-
-        stmt = '''insert into abuse_emails (jpl_email_id, attacker_email_id, timestamp, 
-               filename) values ({}, {}, {}, {})'''.format(jpl_id, attacker_id, email_dt, utc_timestamp)
+        stmt = '''insert into abuse (address_ids, timestamp, filename) values 
+                ('{}', {}, '{}')'''.format(address_ids, utc_timestamp, email_file)
         cur.execute(stmt)
         conn.commit()
+
+        # Break after one for now, while testing
+        break
 
     cur.close()
     conn.close()
