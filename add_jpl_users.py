@@ -26,7 +26,7 @@ def parse_email(fname):
     # datetime of the forward, not the original email. DT originally in local time with
     # difference from UTC appended.
     email_tz = int(email_json["header"]["date"][-6:-3])
-    email_dt = "-".join(email_json["header"]["date"].split("-")[0:-1])
+    email_dt = email_json["header"]["date"][0:-6]
     email_dt = datetime.strptime(email_dt, "%Y-%m-%dT%H:%M:%S")
     email_dt = email_dt - timedelta(hours=email_tz)
     timestamp = (email_dt - datetime(1970,1,1)).total_seconds()
@@ -48,19 +48,28 @@ def main(user_file):
         address_ids = []
 
         for address in addresses:
-            stmt = "insert into email_addresses (address) values ('{}')".format(address)
-            cur.execute(stmt)
+            
+            try:
+                stmt = "insert into email_addresses (address) values ('{}')".format(address.replace("'", ""))
+                cur.execute(stmt)
+            except sql.OperationalError:
+                print(stmt)
+                raise
+            except sql.IntegrityError:
+                pass
 
-            stmt = "select rowid from email_addresses where address = '{}'".format(address)
+            stmt = "select rowid from email_addresses where address = '{}'".format(address.replace("'", ""))
             address_ids.append(cur.execute(stmt).fetchone()[0])
 
-        stmt = '''insert into abuse (address_ids, timestamp, filename) values 
+        try:
+            stmt = '''insert into abuse (address_ids, timestamp, filename) values 
                 ('{}', {}, '{}')'''.format(address_ids, utc_timestamp, email_file)
-        cur.execute(stmt)
-        conn.commit()
-
-        # Break after one for now, while testing
-        break
+            cur.execute(stmt)
+            conn.commit()
+        except sql.OperationalError:
+            raise
+        except sql.IntegrityError:
+            pass
 
     cur.close()
     conn.close()
