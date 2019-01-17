@@ -19,7 +19,7 @@ def main(start_dt, end_dt):
     orig_diff = max_orig - min_orig
     new_diff = end_ts - start_ts
     fraction = new_diff / orig_diff
-    offset = start - min_orig
+    offset = start_ts - min_orig
 
     # Add column to abuse table for new times if it isn't already there
     stmt = "alter table abuse add column replay_timestamp int"
@@ -31,7 +31,7 @@ def main(start_dt, end_dt):
         raise
     
     # Calculate the new timestamp for the compressed timeline
-    stmt = "update abuse set replay_timestamp = (timestamp - {})*{} + {}".format(min_orig, fraction, start)
+    stmt = "update abuse set replay_timestamp = (timestamp - {})*{} + {}".format(min_orig, fraction, start_ts)
     cur.execute(stmt)
 
     conn.commit()
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("start_date", type = str, 
         help = "Datetime to start sending email playback, format %Y-%m-%dT%H:%M:%S")
-    parser.add_arguemnt("end_date", type = str, 
+    parser.add_argument("end_date", type = str, 
         help = "Last datetime for email playback, format %Y-%m-%dT%H:%M:%S")
     args = parser.parse_args()
 
