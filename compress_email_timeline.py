@@ -25,13 +25,13 @@ def main(start_dt, end_dt):
     stmt = "alter table abuse add column replay_timestamp int"
     try:
         cur.execute(stmt)
-    except sql.IntegrityError:
+    except sql.OperationalError:
         pass
     except:
         raise
     
     # Calculate the new timestamp for the compressed timeline
-    stmt = "update abuse set replay_timestamp = (timestamp - {})*{} + {}".format(min_orig, fraction, start_ts)
+    stmt = "update abuse set replay_timestamp = round((timestamp - {})*{} + {})".format(min_orig, fraction, start_ts)
     cur.execute(stmt)
 
     conn.commit()
