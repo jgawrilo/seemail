@@ -4,7 +4,13 @@ from glob import glob
 from datetime import datetime, timedelta
 import sqlite3 as sql
 import re
+import random
+import string
 from swagger_server import util
+# mailinabox management functions
+import sys
+sys.path.append('/root/mailinabox/management/')
+import utils
 import mailconfig
 
 def parse_email(fname):
@@ -55,11 +61,12 @@ def create_chunkman_accounts(address_list = None):
     for row in res:
         chunkman_addresses.append(row[0])
 
-    env = utils.load_environment
+    env = utils.load_environment()
     with open('/home/rosteen/seemail/server_code/jplcr.json', 'r') as f:
         creds = json.load(f)
+    n = 0
     for orig_address in address_list:
-        new_address = orig_address.replace("@","*at*") + "@chunkman.com"
+        new_address = orig_address.replace("@","-at-") + "@chunkman.com"
         # Don't need to add it if it's already there!
         if new_address in chunkman_addresses:
             continue
@@ -67,9 +74,13 @@ def create_chunkman_accounts(address_list = None):
             pwd = creds[new_address]
         else:
             pwd = ''.join([random.choice(string.ascii_letters + string.digits ) for n in range(14)])
-            creds[user.email_address] = pwd
+            creds[new_address] = pwd
         # Here's where the magic happens - call the mailinabox config to add the user
         res = mailconfig.add_mail_user(new_address, pwd, "", env)
+
+        n += 1
+        if n % 100 == 0:
+            print("Created {} accounts so far".format(n))
 
     with open('/home/rosteen/seemail/server_code/jplcr.json', 'w') as f:
         json.dump(creds, f)
