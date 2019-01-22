@@ -1,8 +1,12 @@
 # seemail
 
+## Mailinabox setup
+
 Box set up with `curl -s https://mailinabox.email/setup.sh | sudo bash`
 
-## View all mail
+More details for Mailinabox setup can be found [here](https://mailinabox.email/guide.html)
+
+### View all mail
 
 ```
    11 adduser --system --home /var/archive/mail/ --no-create-home --disabled-password mailarchive
@@ -21,7 +25,17 @@ Box set up with `curl -s https://mailinabox.email/setup.sh | sudo bash`
 
 all mail shows up in /var/archive/mail/new
 
-https://box.chunkman.com/mail/
+### Web access
 
-https://box.chunkman.com/admin
+Mailinabox web mail access can be accessed at https://box.yourdomain.com/mail/
+
+The Mailinabox admin control panel can be accessed at https://box.yourdomain.com/admin
+
+(Replace "yourdomain" with your domain name)
+
+## Install kafka and redis
+
+## Create auxiliary databases
+
+## Clone this repo and run server
 
