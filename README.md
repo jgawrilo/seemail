@@ -35,7 +35,22 @@ The Mailinabox admin control panel can be accessed at https://box.yourdomain.com
 
 ## Install kafka and redis
 
-## Create auxiliary databases
+https://www.digitalocean.com/community/tutorials/how-to-install-apache-kafka-on-ubuntu-18-04
+https://redis.io/topics/quickstart
 
-## Clone this repo and run server
 
+## Clone this repo and download API
+
+From the [API site](https://app.swaggerhub.com/apis/jataware/seemail/1.0) export the Client SDK (as python), the Server Stub (as python-flask) and Download API (as YAML).
+
+
+We recommended running each of the following commands in their own Screen (or similar tool) sessions. Commands as written assume the user is in the top level seemail directory.
+
+`python3 server_code/watch.py`
+
+`cd swagger_dir/server_stub; python3 -m swagger_server`
+
+## Server Notes
+
+* The API stands up a couple additional sqlite databases, by default in the same place as the mailinabox databases (by default /home/user-data/mail/)
+* Due to the above and the need to access Mailinabox management packages, the swagger server and watcher daemon need to be run as a user with access to /var/archive/mail and the mailinabox installation directories.
