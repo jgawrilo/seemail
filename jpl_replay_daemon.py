@@ -2,9 +2,27 @@ import argparse
 import sqlite3 as sql
 import json
 import smtplib
-from datetime import datetime, timedelta()
+from datetime import datetime, timedelta
 from time import sleep
 import requests
+
+# Split a string after a To: or From: to a User object
+def parse_to_user(in_str):
+    user_dict = {}
+    # Are there any cases where there are multiple To recipients listed?
+    split_str = in_str.split(" ")
+    if len(from_split) > 1:
+        user_dict["email_address"] = from_split[-1].replace("<", "").replace(">","")
+        # If it looks like we have a first and last name, use them
+        if len(from_split) = 3:
+            user_dict["first_name"] = from_split[0]
+            user_dict["last_name"] = from_split[1]
+        # Otherwise put the non-address text into the first name field
+        else:
+            user_dict["first_name"] = " ".join(from_split[0:-1])
+    else:
+        user_dict["email_address"] = from_split[0].replace("<", "").replace(">","")
+    return user_dict
 
 def send_email(row, s):
     email_ids = row[0]
@@ -12,14 +30,28 @@ def send_email(row, s):
     # Load email json
     with open(filename, 'r') as f:
         email_json = json.load(f)
-        content = email_json["body"]["content"]
+        print(email_json)
+        content = email_json["body"][0]["content"]
         subject = content.split("Subject: ")[-1].split("\n")[0]
-        print("Subject: {}".format(subject))
         from_str = content.split("From: ")[-1].split("\n")[0]
         to_str = content.split("To: ")[-1].split("\n")[0]
-        body = ""
+        content_type = email_json["body"][0]["content_type"]
+
+    to_users = parse_to_user(to_str)
+    from_user = parse_to_user(from_str)
+
+    print("Subject: {}".format(subject))
+    print("From: {}".format(from_str))
+    print("To: {}".format(to_str))
+    print("Content Type: {}".format(content_type))
+    print("Content: {}".format(content)) 
 
     # Get chunkman email addresses that correspond to the JPL email addresses
+
+    # Convert to and from addresses to API User objects
+
+    # Stop here temporarily for testing
+    return 0
 
     attachments = []
 
