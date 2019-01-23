@@ -51,9 +51,15 @@ We recommended running each of the following commands in their own Screen (or si
 
 `python3 server_code/watch.py`
 
-`cd swagger_dir/server_stub; python3 -m swagger_server`
+`cd server_stub; python3 -m swagger_server`
 
-## Server Notes
+Note that the server uses the Mailinabox management packages for some actions, so it needs to be run as a user with permissions to access the Mailinabox directories.
 
-* The API stands up a couple additional sqlite databases, by default in the same place as the mailinabox databases (by default /home/user-data/mail/)
-* Due to the above and the need to access Mailinabox management packages, the swagger server and watcher daemon need to be run as a user with access to /var/archive/mail and the mailinabox installation directories.
+### Set up bot email daemon (optional)
+
+To generate email traffic on the machine (and thus output to the kafka topic), there is a daemon that can be run to have bot email accounts send emails (dummy text and occasionally an attachment) back and forth. This requires creating a few bot email accounts via the createBotAccount API method - for an example of how to use this, see email\_api\_examples.py. 
+
+In addition to the packages in requirements.txt, the bot email daemon requires nltk and the gutenberg corpus. These can be installed/downloaded with `pip3 install nltk; python3 -c 'import nltk; nltk.download('gutenberg')'`.
+
+Once that is done, the daemon can be run (in a Screen session or similar, preferably) simply with `python3 email_spoofer_daemon.py [attachment file]`. The daemon is set up to send an email every 40-60 minutes between 9AM and 6PM.
+
