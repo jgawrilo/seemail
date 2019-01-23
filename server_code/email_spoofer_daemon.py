@@ -1,6 +1,4 @@
 import sys
-sys.path.append('/home/rosteen/seemail/client_stub/')
-import swagger_client
 import time
 import logging
 import json
@@ -8,8 +6,11 @@ import requests
 import redis
 import random
 import sqlite3 as sql
+import base64
 from datetime import datetime
 from nltk.corpus import gutenberg
+
+hostname = "box.chunkman.com"
 
 def clean_sentences(sentences):
   return sentences.replace(" ,", "").replace(" ' ", "'").replace(" .", ".").replace(" ?", "?").replace(" :", ":")
@@ -21,15 +22,15 @@ def send_email():
         active_bots.append(b.decode('utf-8'))
     random.shuffle(active_bots)
 
-    # Get first and last names
+    # Get first and last names for our bots
     names = {}
     conn = sql.connect('/home/user-data/mail/user_names.sqlite')
     cur = conn.cursor()
     cur.execute("select * from names")
     rows = cur.fetchall()
-    print(rows)
     for row in rows:
-        names[row[3]] = {"first": row[1], "last": row[2]}
+        if row[3] in active_bots:
+            names[row[3]] = {"first": row[1], "last": row[2]}
 
     print(names)
     sender = {"email_address": active_bots[0], 
@@ -82,10 +83,7 @@ def send_email():
          "headers": []
          }
 
-    conf = swagger_client.configuration.Configuration()
-    conf.host = "https://box.chunkman.com:8080"
-    api_instance = swagger_client.DefaultApi(swagger_client.ApiClient(conf))
-    res = api_instance.request_send_mail_post(email)
+    requests.post("https://{}:8080/requestSendMail".format(hostname), json=email)
     logging.info("Sent email from {} to {}".format(sender, receivers))
 
 

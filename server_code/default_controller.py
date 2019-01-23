@@ -356,7 +356,6 @@ def request_send_mail_post(email):  # noqa: E501
     logging.info("Sent email from {} to {}".format(email.sent_to, email.sent_from))
     return True
 
-
 def unmonitor_users_get(email_addresses):  # noqa: E501
     """Remove users from set to monitor email for (sent to kafka)
 
