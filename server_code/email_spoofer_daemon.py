@@ -7,6 +7,7 @@ import redis
 import random
 import sqlite3 as sql
 import base64
+from os import path
 from datetime import datetime
 from nltk.corpus import gutenberg
 
@@ -15,7 +16,7 @@ hostname = "box.chunkman.com"
 def clean_sentences(sentences):
   return sentences.replace(" ,", "").replace(" ' ", "'").replace(" .", ".").replace(" ?", "?").replace(" :", ":")
 
-def send_email():
+def send_email(attachment_fname):
     bots_r = redis.StrictRedis(host='localhost', port=6379, db=2)
     active_bots = []
     for b in bots_r.scan_iter():
@@ -67,8 +68,8 @@ def send_email():
     # Decide whether to attach an image
     attachments = []
     if random.random() > 0.8:
-        with open('Sombrero_PROMPT.png', "rb") as f:
-            attachments.append({"name": 'Sombrero_PROMPT.png', "base64_string": base64.b64encode(f.read()).decode('ascii')})
+        with open(attachment_fname, "rb") as f:
+            attachments.append({"name": path.basename(attachment_fname), "base64_string": base64.b64encode(f.read()).decode('ascii')})
 
     email = {
          "sent_from": sender,
@@ -88,6 +89,7 @@ def send_email():
 
 
 if __name__ == "__main__":
+    attachment_file = sys.argv[1]
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s - %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S', 
@@ -96,7 +98,7 @@ if __name__ == "__main__":
         # Check to see if it's daytime
         hour = int(datetime.now().strftime('%H'))
         if hour >= 9 and hour <= 18:
-            send_email()
+            send_email(attachment_file)
             time_to_sleep = random.randint(2400, 3600)
             logging.info("Sending next email in {} minutes".format(time_to_sleep/60))
         else:
