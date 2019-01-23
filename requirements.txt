@@ -1,0 +1,4 @@
+six
+redis
+imbox
+kafka-python

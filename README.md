@@ -31,18 +31,21 @@ Mailinabox web mail access can be accessed at https://box.yourdomain.com/mail/
 
 The Mailinabox admin control panel can be accessed at https://box.yourdomain.com/admin
 
-(Replace "yourdomain" with your domain name)
+(This assumes that you have followed the mailinabox recommendation for your machine's hostname)
 
 ## Install kafka and redis
 
-https://www.digitalocean.com/community/tutorials/how-to-install-apache-kafka-on-ubuntu-18-04
-https://redis.io/topics/quickstart
+The seemail code pipes incoming/outgoing emails into a kafka topic, and uses redis for keeping track of active/inactive bot accounts. Refer to the [kafka](https://kafka.apache.org/quickstart) and [redis](https://kafka.apache.org/quickstart) quickstart instructions.
 
+## Install seemail code and Swagger API
 
-## Clone this repo and download API
+Clone this repo by using `git clone https://github.com/jgawrilo/seemail.git` and make sure required python packages are installed with `pip3 install -r requirements.txt`.
 
-From the [API site](https://app.swaggerhub.com/apis/jataware/seemail/1.0) export the Client SDK (as python), the Server Stub (as python-flask) and Download API (as YAML).
+From the [API site](https://app.swaggerhub.com/apis/jataware/seemail/1.0) use the export button in the top right to export the Server Stub (as python-flask). Unzip the resulting python-flask-server-generated.zip file to a location on your machine - I created a server\_stub directory in the seemail directory to use. Change directory to the unzipped folder and make sure the requirements are installed with `pip3 install -r requirements.txt`.
 
+Copy the seemail/server\_code/default\_controller.py file to server\_stub/swagger\_server/controllers/, overwriting the default\_controller.py file that is already there.
+
+## Start background processes
 
 We recommended running each of the following commands in their own Screen (or similar tool) sessions. Commands as written assume the user is in the top level seemail directory.
 

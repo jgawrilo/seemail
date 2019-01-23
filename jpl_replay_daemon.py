@@ -19,9 +19,13 @@ def parse_to_user(in_str):
             user_dict["last_name"] = from_split[1]
         # Otherwise put the non-address text into the first name field
         else:
-            user_dict["first_name"] = " ".join(from_split[0:-1])
+            user_dict["first_name"] = " ".join(split_str[0:-1])
     else:
         user_dict["email_address"] = from_split[0].replace("<", "").replace(">","")
+    
+    # Change the email address to the chunkman version
+    user_dict["email_address"] = user_dict["email_address"].replace("@","-at-") + "@chunkman.com"
+
     return user_dict
 
 def send_email(row, s):
