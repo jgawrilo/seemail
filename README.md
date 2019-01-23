@@ -63,3 +63,6 @@ In addition to the packages in requirements.txt, the bot email daemon requires n
 
 Once that is done, the daemon can be run (in a Screen session or similar, preferably) simply with `python3 email_spoofer_daemon.py [attachment file]`. The daemon is set up to send an email every 40-60 minutes between 9AM and 6PM.
 
+## Examples
+
+The examples directory has scripts to demonstrate two ways to interact with the server. Examples of calling each of the API methods are found in email\_api\_examples.py. An example of creating a consumer to ingest and display emails coming off of the email kafka topic is found in kafka\_consumer.py. The kafka example script can also take kafka topic name as an optional parameter to subscribe to a topic other than the default "email" (for example, "history").
