@@ -11,17 +11,17 @@ def parse_to_user(in_str):
     user_dict = {}
     # Are there any cases where there are multiple To recipients listed?
     split_str = in_str.split(" ")
-    if len(from_split) > 1:
-        user_dict["email_address"] = from_split[-1].replace("<", "").replace(">","")
+    if len(split_str) > 1:
+        user_dict["email_address"] = split_str[-1].replace("<", "").replace(">","")
         # If it looks like we have a first and last name, use them
-        if len(from_split) = 3:
-            user_dict["first_name"] = from_split[0]
-            user_dict["last_name"] = from_split[1]
+        if len(split_str) == 3:
+            user_dict["first_name"] = split_str[0]
+            user_dict["last_name"] = split_str[1]
         # Otherwise put the non-address text into the first name field
         else:
             user_dict["first_name"] = " ".join(split_str[0:-1])
     else:
-        user_dict["email_address"] = from_split[0].replace("<", "").replace(">","")
+        user_dict["email_address"] = split_str[0].replace("<", "").replace(">","")
     
     # Change the email address to the chunkman version
     user_dict["email_address"] = user_dict["email_address"].replace("@","-at-") + "@chunkman.com"
@@ -45,8 +45,8 @@ def send_email(row, s):
     from_user = parse_to_user(from_str)
 
     print("Subject: {}".format(subject))
-    print("From: {}".format(from_str))
-    print("To: {}".format(to_str))
+    print("From: {}".format(from_user))
+    print("To: {}".format(to_users))
     print("Content Type: {}".format(content_type))
     print("Content: {}".format(content)) 
 
