@@ -1,5 +1,7 @@
 # seemail
 
+Deployable ASED email infrastructure using Mailinabox setup and this [API specification](https://app.swaggerhub.com/apis/jataware/seemail/1.0).  The purpose of this project is to allow ASED systems to task and receive emails from some organizations imap/smtp email servers.
+
 ## Mailinabox setup
 
 Box set up with `curl -s https://mailinabox.email/setup.sh | sudo bash`
