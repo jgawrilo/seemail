@@ -53,7 +53,7 @@ We recommend running each of the following commands in their own Screen (or simi
 
 `cd server_stub; python3 -m swagger_server` (reminder: server\_stub is where the swagger API file was unzipped)
 
-Note that the server uses the Mailinabox management packages for some actions, so it needs to be run as a user with permissions to access the /root/mailinabox/management directory (if your mailinabox management scripts installed somewhere else, ).
+Note that the server uses the Mailinabox management packages for some actions, so it needs to be run as a user with permissions to access the /root/mailinabox/management directory (if your mailinabox management scripts installed somewhere else, that path will need to be changed in the imports section of default\_controller.py).
 
 ### Set up bot email daemon (optional)
 
