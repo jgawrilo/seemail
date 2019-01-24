@@ -149,7 +149,7 @@ def create_bot_account_post(user):  # noqa: E501
     # Add first and last names to names sqlite db (separate from the mailinabox
     # db file to avoid messing up any of their management services)
     conn1 = sql.connect('{}/users.sqlite'.format(mail_home))
-    conn2 = sql.connect('{}/user_names.sqlite'.format(mail_home)
+    conn2 = sql.connect('{}/user_names.sqlite'.format(mail_home))
     cur1 = conn1.cursor()
     cur2 = conn2.cursor()
     user_id = cur1.execute('select id from users where email="{}"'.format(user.email_address)).fetchone()[0]
