@@ -33,6 +33,10 @@ sys.path.append('/root/mailinabox/management/')
 import utils
 import mailconfig
 
+# Important directories
+mail_home = '/home/user-data/mail'
+seemail_path = '/home/rosteen/seemail'
+
 def generate_password(length = 18):
     return ''.join([random.choice(string.ascii_letters + string.digits ) for n in range(length)])
 
@@ -124,7 +128,7 @@ def create_bot_account_post(user):  # noqa: E501
         reactivating = True
 
     # Load bot credentials file
-    with open('/home/rosteen/seemail/server_code/bcr.json', 'r') as f:
+    with open('{}/bcr.json'.format(seemail_path), 'r') as f:
         creds = json.load(f)
 
     # Generate a password and create the actual email account
@@ -133,7 +137,7 @@ def create_bot_account_post(user):  # noqa: E501
     else:
         pwd = generate_password()
         creds[user.email_address] = pwd
-        with open('/home/rosteen/seemail/server_code/bcr.json', 'w') as f:
+        with open('{}/bcr.json'.format(seemail_path), 'w') as f:
             json.dump(creds, f)
 
     # Add mailbox for bot
@@ -144,8 +148,8 @@ def create_bot_account_post(user):  # noqa: E501
 
     # Add first and last names to names sqlite db (separate from the mailinabox
     # db file to avoid messing up any of their management services)
-    conn1 = sql.connect('/home/user-data/mail/users.sqlite')
-    conn2 = sql.connect('/home/user-data/mail/user_names.sqlite')
+    conn1 = sql.connect('{}/users.sqlite'.format(mail_home))
+    conn2 = sql.connect('{}/user_names.sqlite'.format(mail_home)
     cur1 = conn1.cursor()
     cur2 = conn2.cursor()
     user_id = cur1.execute('select id from users where email="{}"'.format(user.email_address)).fetchone()[0]
@@ -181,9 +185,9 @@ def get_all_users():  # noqa: E501
     ## Not sure if this will work on all email implementations. 
     ## Needs location of mailboxes on server, and permission to access that location
     users = []
-    domains = os.listdir('/home/user-data/mail/mailboxes')
+    domains = os.listdir('{}/mailboxes'.format(mail_home))
     for domain in domains:
-        temp_users = os.listdir('/home/user-data/mail/mailboxes/{}/'.format(domain))
+        temp_users = os.listdir('{}/mailboxes/{}/'.format(mail_home, domain))
         for name in temp_users:
             users.append("{}@{}".format(name, domain).encode('utf-8'))
     # Get bots to exclude, we only want to return real users
@@ -197,7 +201,7 @@ def get_all_users():  # noqa: E501
     # Decode from bytes to string for JSON encoding
     decoded_users = [User(email_address = x.decode('utf-8')) for x in users]
     # Get first and last names
-    conn = sql.connect("/home/user-data/mail/user_names.sqlite")
+    conn = sql.connect("{}/user_names.sqlite".format(mail_home))
     cur = conn.cursor()
     for i in range(0, len(decoded_users)):
         try:
@@ -343,7 +347,7 @@ def request_send_mail_post(email):  # noqa: E501
         msg.attach(part)
 
     # Load bot credentials file
-    with open('/home/rosteen/seemail/server_code/bcr.json', 'r') as f:
+    with open('{}/bcr.json'.format(seemail_path), 'r') as f:
         creds = json.load(f)
         pwd = creds[email.sent_from.email_address]
     s.connect('localhost:587')
