@@ -47,11 +47,11 @@ Copy the seemail/server\_code/default\_controller.py file to server\_stub/swagge
 
 ## Start background processes
 
-We recommended running each of the following commands in their own Screen (or similar tool) sessions. Commands as written assume the user is in the top level seemail directory.
+We recommend running each of the following commands in their own Screen (or similar tool) sessions. Commands as written assume the user is in the top level seemail directory.
 
 `python3 server_code/watch.py`
 
-`cd server_stub; python3 -m swagger_server`
+`cd server_stub; python3 -m swagger_server` (reminder: server\_stub is where the swagger API file was unzipped)
 
 Note that the server uses the Mailinabox management packages for some actions, so it needs to be run as a user with permissions to access the Mailinabox directories.
 
