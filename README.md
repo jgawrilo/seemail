@@ -43,7 +43,7 @@ Clone this repo by using `git clone https://github.com/jgawrilo/seemail.git` and
 
 From the [API site](https://app.swaggerhub.com/apis/jataware/seemail/1.0) use the export button in the top right to export the Server Stub (as python-flask). Unzip the resulting python-flask-server-generated.zip file to a location on your machine - I created a server\_stub directory in the seemail directory to use. Change directory to the unzipped folder and make sure the requirements are installed with `pip3 install -r requirements.txt`.
 
-Copy the seemail/server\_code/default\_controller.py file to server\_stub/swagger\_server/controllers/, overwriting the default\_controller.py file that is already there.
+In default\_controller.py, change the hard coded seemail\_path variable to point to wherever you cloned this repo. If you did a non-standard mailinabox install you may also have to change the mail\_home variable in default\_controller.py and email\_spoofer\_daemon.py. Then copy the default\_controller.py file to server\_stub/swagger\_server/controllers/, overwriting the default\_controller.py file that is already there.
 
 ## Start background processes
 
@@ -53,7 +53,7 @@ We recommend running each of the following commands in their own Screen (or simi
 
 `cd server_stub; python3 -m swagger_server` (reminder: server\_stub is where the swagger API file was unzipped)
 
-Note that the server uses the Mailinabox management packages for some actions, so it needs to be run as a user with permissions to access the Mailinabox directories.
+Note that the server uses the Mailinabox management packages for some actions, so it needs to be run as a user with permissions to access the /root/mailinabox/management directory (if your mailinabox management scripts installed somewhere else, ).
 
 ### Set up bot email daemon (optional)
 

@@ -12,6 +12,7 @@ from datetime import datetime
 from nltk.corpus import gutenberg
 
 hostname = "box.chunkman.com"
+mail_home = "/home/user-data/mail"
 
 def clean_sentences(sentences):
   return sentences.replace(" ,", "").replace(" ' ", "'").replace(" .", ".").replace(" ?", "?").replace(" :", ":")
@@ -25,7 +26,7 @@ def send_email(attachment_fname):
 
     # Get first and last names for our bots
     names = {}
-    conn = sql.connect('/home/user-data/mail/user_names.sqlite')
+    conn = sql.connect('{}/user_names.sqlite'.format(mail_home))
     cur = conn.cursor()
     cur.execute("select * from names")
     rows = cur.fetchall()
