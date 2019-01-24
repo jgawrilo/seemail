@@ -1,4 +1,5 @@
 import argparse
+import re
 import sqlite3 as sql
 import json
 import smtplib
@@ -34,25 +35,35 @@ def send_email(row, s):
     # Load email json
     with open(filename, 'r') as f:
         email_json = json.load(f)
-        print(email_json)
-        content = email_json["body"][0]["content"]
-        subject = content.split("Subject: ")[-1].split("\n")[0]
-        from_str = content.split("From: ")[-1].split("\n")[0]
-        to_str = content.split("To: ")[-1].split("\n")[0]
-        content_type = email_json["body"][0]["content_type"]
+        
+    print(email_json)
+    email_addresses = email_json["body"][0]["email"]
+    for i in range(0, len(email_addresses)):
+        if re.search("jpl.nasa.gov", email_addresses[i]) is not None:
+            continue
+        else:
+            from_email = email_addresses[i]
+    content = email_json["body"][0]["content"]
+    subject = content.split("Subject: ")[-1].split("\n")[0]
+    content_type = email_json["body"][0]["content_type"]
+    # Upon further testing, it looks like these two don't always hold up.
+    # Might need to use the body:email list, which unfortunately isn't ordered
+    from_str = content.split("From: ")[-1].split("\n")[0]
+    to_str = content.split("To: ")[-1].split("\n")[0]
 
-    to_users = parse_to_user(to_str)
-    from_user = parse_to_user(from_str)
+    to_email = email_json["header"]["from"] # JPL user that forwarded the email
+    to_users = [{"email_address": to_email.replace("@","-at-") + "@chunkman.com"}]
+    from_user = {"email_address": from_email.replace("@","-at-") + "@chunkman.com"}
+    #to_users = parse_to_user(to_str)
+    #from_user = parse_to_user(from_str)
+
+    body = "\n".join(content.split("Subject: ")[-1].split("\n")[1:])
 
     print("Subject: {}".format(subject))
     print("From: {}".format(from_user))
     print("To: {}".format(to_users))
     print("Content Type: {}".format(content_type))
-    print("Content: {}".format(content)) 
-
-    # Get chunkman email addresses that correspond to the JPL email addresses
-
-    # Convert to and from addresses to API User objects
+    print("Body: {}".format(body)) 
 
     # Stop here temporarily for testing
     return 0
@@ -61,8 +72,8 @@ def send_email(row, s):
 
     # Parse the email content to build the email object
     email = {
-         "sent_from": from_address,
-         "sent_to": [],
+         "sent_from": from_user,
+         "sent_to": to_users,
          "sent_cc": [],
          "sent_bcc": [],
          "body": "",

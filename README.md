@@ -53,7 +53,7 @@ We recommend running each of the following commands in their own Screen (or simi
 
 `cd server_stub; python3 -m swagger_server` (reminder: server\_stub is where the swagger API file was unzipped)
 
-Note that the server uses the Mailinabox management packages for some actions, so it needs to be run as a user with permissions to access the Mailinabox directories.
+Note that the server uses the Mailinabox management packages for some actions, so it needs to be run as a user with permissions to access the Mailinabox directories. The default\_controller.py script has a hard coded reference to /root/mailinabox/management/ as the location of the mailinabox utils.py and mailconfig.py scripts, and to /home/user-data/mail/ as the location of the mailinabox users.sqlite database file.
 
 ### Set up bot email daemon (optional)
 
