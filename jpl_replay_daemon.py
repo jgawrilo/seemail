@@ -23,7 +23,7 @@ def parse_to_user(in_str):
             user_dict["first_name"] = " ".join(split_str[0:-1])
     else:
         user_dict["email_address"] = split_str[0].replace("<", "").replace(">","")
-    
+
     # Change the email address to the chunkman version
     user_dict["email_address"] = user_dict["email_address"].replace("@","-at-") + "@chunkman.com"
 
@@ -35,7 +35,7 @@ def send_email(row, s):
     # Load email json
     with open(filename, 'r') as f:
         email_json = json.load(f)
-        
+
     print(email_json)
     email_addresses = email_json["body"][0]["email"]
     for i in range(0, len(email_addresses)):
@@ -63,10 +63,10 @@ def send_email(row, s):
     print("From: {}".format(from_user))
     print("To: {}".format(to_users))
     print("Content Type: {}".format(content_type))
-    print("Body: {}".format(body)) 
+    print("Body: {}".format(body))
 
     # Stop here temporarily for testing
-    return 0
+    return from_user["email_address"], to_user["email_address"]
 
     attachments = []
 
@@ -83,7 +83,7 @@ def send_email(row, s):
          "forward_id": "",
          "headers": []
          }
-    
+
     # Send the email via the swagger API
     res = requests.post("https://box.chunkman.com:8080/requestSendMail", json=email)
 
@@ -102,7 +102,9 @@ if __name__ == "__main__":
     # Connect to the smtp server
     s = smtplib.SMTP("localhost:587")
 
-    start_dt = datetime.now()
+    #start_dt = datetime.now()
+    # For testing, fake starting at Feb 1
+    start_dt = datetime.utcfromtimestamp(1549022400)
     while true:
         end_dt = start_dt + timedelta(seconds = 60)
         # Get the emails to send this minute and send them
@@ -111,11 +113,13 @@ if __name__ == "__main__":
         res = cur1.fetchall()
 
         # Send the emails
-        for row in res:
-            send_email(row)
+        with open('replay_test.txt', 'a') as f:
+            for row in res:
+                from_email, to_email = send_email(row)
+                f.write("{}, {}\n".format(from_email, to_email))
 
         # Set the start time to the next minute and sleep for the rest of this minute
-        # Should probably make sure email sends didn't take longer than expected 
+        # Should probably make sure email sends didn't take longer than expected
         # and put us into the next time period
         start_dt = end_dt
         now = datetime.now()
