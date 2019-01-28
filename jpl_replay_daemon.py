@@ -29,21 +29,47 @@ def parse_to_user(in_str):
 
     return user_dict
 
-def send_email(row, s):
+def send_email(row):
     email_ids = row[0]
     filename  = row[2]
+    print("parsing {}".format(filename))
     # Load email json
     with open(filename, 'r') as f:
         email_json = json.load(f)
 
-    print(email_json)
-    email_addresses = email_json["body"][0]["email"]
-    for i in range(0, len(email_addresses)):
-        if re.search("jpl.nasa.gov", email_addresses[i]) is not None:
+    #print(email_json)
+    n_subsections = len(email_json["body"])
+    i = 0
+    email_addresses = []
+    from_email = ''
+    jpl_addresses = []
+    while i < n_subsections:
+        try:
+            email_addresses = email_json["body"][i]["email"]
+            print("breaking...")
+            break
+        except:
+            i += 1
+    if email_addresses == []:
+        i = 0
+    print("Using body section {}".format(i))
+
+    for j in range(0, len(email_addresses)):
+        # Some addresses are just nasa.gov rather than jpl.nasa.gov, want to catch those
+        if re.search("nasa.gov", email_addresses[j]) is not None:
+            jpl_addresses.append(email_addresses[j])
+        elif re.search("apache", email_addresses[j]) is not None:
             continue
         else:
-            from_email = email_addresses[i]
-    content = email_json["body"][0]["content"]
+            if from_email == '' or len(email_addresses[j]) < len(from_email):
+                from_email = email_addresses[j]
+
+    content = email_json["body"][i]["content"]
+
+    # See if the "begin forwarded message" string is there, if so split
+    if re.search("Begin forwarded message:", content) is not None:
+        content = content.split("Begin forwarded message:")[1]
+
     subject = content.split("Subject: ")[-1].split("\n")[0]
     content_type = email_json["body"][0]["content_type"]
     # Upon further testing, it looks like these two don't always hold up.
@@ -66,7 +92,7 @@ def send_email(row, s):
     print("Body: {}".format(body))
 
     # Stop here temporarily for testing
-    return from_user["email_address"], to_user["email_address"]
+    return from_user["email_address"], to_users[0]["email_address"]
 
     attachments = []
 
@@ -84,6 +110,8 @@ def send_email(row, s):
          "headers": []
          }
 
+    print(json.dumps(email, indent=2))
+
     # Send the email via the swagger API
     res = requests.post("https://box.chunkman.com:8080/requestSendMail", json=email)
 
@@ -92,36 +120,37 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Load credentials for JPL email address duplicates
-    with open("/home/user/rosteen/seemail/server_code/jplcr.json") as f:
+    with open("/home/rosteen/seemail/jplcr.json") as f:
         creds = json.load(f)
 
     # Connect to database
     conn1 = sql.connect("/home/user-data/mail/jpl_emails.sqlite")
     cur1 = conn1.cursor()
 
-    # Connect to the smtp server
-    s = smtplib.SMTP("localhost:587")
-
-    #start_dt = datetime.now()
+    #start_dt = (datetime.now() - datetime(1970,1,1)).total_seconds()
     # For testing, fake starting at Feb 1
-    start_dt = datetime.utcfromtimestamp(1549022400)
-    while true:
-        end_dt = start_dt + timedelta(seconds = 60)
+    #start_dt = 1549022400
+    start_dt = 1549030200
+    while True:
+        end_dt = start_dt + 60
         # Get the emails to send this minute and send them
         stmt = "select * from abuse where replay_timestamp > {} and replay_timestamp <= {}".format(start_dt, end_dt)
+        print(stmt)
         cur1.execute(stmt)
         res = cur1.fetchall()
 
         # Send the emails
         with open('replay_test.txt', 'a') as f:
             for row in res:
-                from_email, to_email = send_email(row)
-                f.write("{}, {}\n".format(from_email, to_email))
+                from_email, to_emails = send_email(row)
+                f.write("{}, {}\n".format(from_email, to_emails))
 
         # Set the start time to the next minute and sleep for the rest of this minute
         # Should probably make sure email sends didn't take longer than expected
         # and put us into the next time period
         start_dt = end_dt
-        now = datetime.now()
-        sleep_time = (end_dt - now).total_seconds()
-        sleep(sleep_time)
+        now = (datetime.now() - datetime(1970,1,1)).total_seconds()
+        sleep_time = end_dt - now
+        #sleep(sleep_time)
+        # Shorter time for testing
+        sleep(2)
