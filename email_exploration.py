@@ -1,7 +1,17 @@
 import sqlite3 as sql
 import json
 import re
+import csv
 
+def parse_attachments(email_json):
+    temp_row = []
+    if "attachment" in email_json:
+        for attachment in email_json["attachment"]:
+            if "extension" in attachment:
+                temp_row.append([attachment["filename"], attachment["size"], attachment["extension"]])
+            else:
+                temp_row.append([attachment["filename"], attachment["size"], "none"])
+    return temp_row
 
 def count_jpl_emails(email_json):
    
@@ -35,6 +45,7 @@ if __name__ == "__main__":
 
     jpl_email_histogram = {}
     jpl_forwarders = {}
+    jpl_attachments = []
 
     for fname in filenames:
         with open(fname, "r") as f:
@@ -51,6 +62,7 @@ if __name__ == "__main__":
             jpl_forwarders[to_email] += 1
         else:
             jpl_forwarders[to_email] = 1
+        jpl_attachments += parse_attachments(email_json)
 
     with open("jpl_count_histogram.csv", "w") as f:
         for key in jpl_email_histogram:
@@ -63,3 +75,7 @@ if __name__ == "__main__":
     with open("jpl_timeline.csv", "w") as f:
         for timestamp in sorted(timestamps):
             f.write("{}\n".format(timestamp))
+
+    with open("jpl_attachments.csv", "w") as f:
+        fwriter = csv.writer(f)
+        fwriter.writerows(jpl_attachments)

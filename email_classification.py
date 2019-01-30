@@ -1,10 +1,14 @@
 ###############################################################################
 # Run some simple classification models on the JPL Abuse dataset to get an 
 # initial look at what baseline performance is. 
+#
+# Some code shamelessly based off of 
+# https://www.kdnuggets.com/2017/03/email-spam-filtering-an-implementation-with-python-and-scikit-learn.html
 ###############################################################################
 
 import json
 import argparse
+import re
 import os
 import numpy as np
 from collections import Counter
@@ -45,6 +49,23 @@ def featurize_email(email_json):
         n_attachments = 0
 
     # Make a one-hot variable for attachment extensions? Need to find out what the set of extensions is.
+    extensions = ['jpg', 'png', 'p7m', 'none', 'txt', 'htm', 'pdf', 'docx', 
+                  'ics', 'gif', 'bmp', 'pptx', 'doc', 'zip', 'xls', 'xlsx', 
+                  'html', 'aspx', 'xml', 'jar', 'rar', 'tiff', '05', 'jpeg', 
+                  'ace', 'wav', 'm4a', 'vcf', '3gp', 'avi']
+    extension_indices = {}
+    # Build index reference dictionary
+    for i in range(0, len(extensions)):
+        extension_indices[extensions[i]] = i
+    # Might make this a numpy array...
+    att_extensions = [0] * len(extensions)
+    att_sizes = []
+    if len(n_attachments) > 0:
+        for attachment in email_json["attachments"]:
+            if "extension" not in attachment:
+                att_extensions[extension_indices["none"]] += 1
+            else:
+                att_extensions[extension_indices[attachment["extension"]]] += 1
 
 def run_svm():
     pass
