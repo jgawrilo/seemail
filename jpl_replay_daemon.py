@@ -79,6 +79,10 @@ def send_email(row):
 
     to_email = email_json["header"]["from"] # JPL user that forwarded the email
     to_users = [{"email_address": to_email.replace("@","-at-") + "@chunkman.com"}]
+    # Add more to users if there are more jpl email addresses
+    if len(jpl_addresses) > 1:
+        for address in jpl_addresses:
+            to_users.append({"email_address": address.replace("@","-at-") + "@chunkman.com"})
     from_user = {"email_address": from_email.replace("@","-at-") + "@chunkman.com"}
     #to_users = parse_to_user(to_str)
     #from_user = parse_to_user(from_str)
@@ -129,8 +133,8 @@ if __name__ == "__main__":
 
     #start_dt = (datetime.now() - datetime(1970,1,1)).total_seconds()
     # For testing, fake starting at Feb 1
-    #start_dt = 1549022400
-    start_dt = 1549030200
+    start_dt = 1549022400
+    #start_dt = 1549030200
     while True:
         end_dt = start_dt + 60
         # Get the emails to send this minute and send them
