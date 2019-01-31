@@ -75,10 +75,17 @@ def featurize_email(email_json, word_list):
 
     return att_extensions + [n_extensions, n_jpl, n_outside, subj_chars, subj_words, n_links]
 
-def run_svm():
+# I'll probably end up being able to consolidate a lot of the training/testing code
+# but for now I'm keeping the models separate in case there are differences
+
+def run_svm(train_matrix, train_labels):
+    model = LInearSVC()
+    model.fit(train_matrix, train_labels)
     pass
 
-def run_naive_bayes():
+def run_naive_bayes(train_matrix, train_labels):
+    model = MultinomialNB()
+    model.fit(train_matrix, train_labels)
     pass
 
 def run_knn():
@@ -91,7 +98,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-m", "--model", type = str, default = "SVM",
                         help = "Model to use for classification")
-    
+    parser.add_argument("-w", "--ords", type = str, help = "Word dictionary (well, list) json file")
     args = parser.parse_args()
 
     function_key = {"SVM": run_svm,
@@ -99,4 +106,17 @@ if __name__ == "__main__":
                     "KNN": run_knn,
                     "RF": run_random_forest}
 
+    if args.words:
+        with open(args.words, "r") as f:
+            word_list = json.load(f)
+        # Might be (probably) a list of (word, count) pairs. Take just the words
+        if type(word_list[0]) == list:
+            word_list = [x[0] for x in word_list]
+        print("Loaded word dictionary of {} words".format(len(word_list)))
+
+    # Parse all the emails to create training/test matrices and labels
+
+    # Train the chosen model
     res = function_key[args.model]()
+
+    # Run test on the trained model to check performance
