@@ -18,7 +18,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import KNeighborsClassifier
 
-def featurize_email(email_json, word_list):
+def featurize_email(email_json, word_indices):
     n_subsections = len(email_json["body"])
     jpl_addresses = []
     outside_addresses = []
@@ -87,9 +87,12 @@ def featurize_email(email_json, word_list):
                 continue
             words.append(word)
     word_counter = Counter(words)
-    encoded_words = [0] * len(word_list)
+    encoded_words = [0] * len(word_indices)
+    for word in word_counter:
+        if word[0] in word_indices:
+            encoded_words[word_indices[word[0]]] = word[1]
 
-    return np.array(att_extensions + [n_extensions, n_jpl, n_outside, subj_chars, subj_words, n_links])
+    return np.array(att_extensions + [n_extensions, n_jpl, n_outside, subj_chars, subj_words, n_links] + encoded_words)
 
 # I'll probably end up being able to consolidate a lot of the training/testing code
 # but for now I'm keeping the models separate in case there are differences
@@ -141,11 +144,14 @@ if __name__ == "__main__":
 
     # Load list of words for word frequency features
     if args.words:
+        word_indices = {}
         with open(args.words, "r") as f:
             word_list = json.load(f)
         # Might be (probably) a list of (word, count) pairs. Take just the words
         if type(word_list[0]) == list:
             word_list = [x[0] for x in word_list]
+        for i in range(0, len(word_list)):
+            word_indices[word_list[i]] = i
         print("Loaded word dictionary of {} words".format(len(word_list)))
 
     # Parse all the emails to create training/test matrices and labels
@@ -159,7 +165,7 @@ if __name__ == "__main__":
             input_label = "Phishing"
         with open(fname, "r") as f:
             email_json = json.load(f)
-        features = featurize_email(email_json, word_list)
+        features = featurize_email(email_json, word_indices)
         if feature_matrix == []:
             feature_matrix = features
         else:
@@ -181,3 +187,4 @@ if __name__ == "__main__":
     # Run test on the trained model to check performance
     res = model.predict(X_test)
     print(confusion_matrix(y_test, res))
+    print(classification_report(y_test, res))
