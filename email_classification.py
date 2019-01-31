@@ -81,12 +81,12 @@ def featurize_email(email_json, word_list):
 def run_svm(train_matrix, train_labels):
     model = LInearSVC()
     model.fit(train_matrix, train_labels)
-    pass
+    return model
 
 def run_naive_bayes(train_matrix, train_labels):
     model = MultinomialNB()
     model.fit(train_matrix, train_labels)
-    pass
+    return model
 
 def run_knn():
     pass
@@ -106,6 +106,24 @@ if __name__ == "__main__":
                     "KNN": run_knn,
                     "RF": run_random_forest}
 
+    # Note: I'm putting the Credential Phishing and Phishing Training emails both under Phishing
+    type_labels = {"Not Spam": 0,
+                   "Malware": 1,
+                   "Phishing": 2,
+                   "Propaganda": 3,
+                   "Recon": 4,
+                   "Social Engineering": 5,
+                   "Spam": 6}
+
+    # Get filenames from database
+    conn = sql.connect("/home/user-data/mail/jpl_emails.sqlite")
+    cur = conn.cursor()
+    filenames = []
+    res = cur.execute("select * from abuse").fetchall()
+    for row in res:
+        filenames.append(row[2])
+
+    # Load list of words for word frequency features
     if args.words:
         with open(args.words, "r") as f:
             word_list = json.load(f)
@@ -115,8 +133,20 @@ if __name__ == "__main__":
         print("Loaded word dictionary of {} words".format(len(word_list)))
 
     # Parse all the emails to create training/test matrices and labels
+    for fname in filenames:
+        str_label = fname.split("/")[-2]
+        if str_label == "Unknown":
+            continue
+        elif re.search("Phishing", input_label) is not None:
+            input_label = "Phishing"
+        with open(fname, "r") as f:
+            email_json = json.load(f)
+        features = featurize_email(email_json, word_list)
+        int_label = type_labels[str_label] 
 
     # Train the chosen model
-    res = function_key[args.model]()
+    model = function_key[args.model](train_matrix, train_labels)
 
     # Run test on the trained model to check performance
+    res = model.predict(test_matrix)
+
