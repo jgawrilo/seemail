@@ -14,6 +14,7 @@ import numpy as np
 from collections import Counter
 from sklearn.naive_bayes import MultinomialNB, GaussianNB, BernoulliNB
 from sklearn.svm import SVC, NuSVC, LinearSVC
+from sklearn.model_selection import train_test_split
 
 def featurize_email(email_json, word_list):
     n_subsections = len(email_json["body"])
@@ -54,7 +55,7 @@ def featurize_email(email_json, word_list):
     else:
         n_attachments = 0
 
-    # Make a one-hot variable for attachment extensions? Need to find out what the set of extensions is.
+    # Make a one-hot variable the set of extensions.
     extensions = ['jpg', 'png', 'p7m', 'none', 'txt', 'htm', 'pdf', 'docx', 
                   'ics', 'gif', 'bmp', 'pptx', 'doc', 'zip', 'xls', 'xlsx', 
                   'html', 'aspx', 'xml', 'jar', 'rar', 'tiff', '05', 'jpeg', 
@@ -73,7 +74,20 @@ def featurize_email(email_json, word_list):
             else:
                 att_extensions[extension_indices[attachment["extension"]]] += 1
 
-    return att_extensions + [n_extensions, n_jpl, n_outside, subj_chars, subj_words, n_links]
+    # Encode occurence in this email of the top words from the whole set. 
+    words = []
+    for item in email_json["body"]:
+        temp_words = item["content"].split()
+        for word in temp_words:
+            # Cull some things we don't want. Very long words are probably links and such
+            # May also want to cut out stop words here.
+            if len(word) > 15 or re.search(":", word) is not None or word.isalpha() is False or word in stops:
+                continue
+            words.append(word)
+    word_counter = Counter(words)
+    encoded_words = [0] * len(word_list)
+
+    return np.array(att_extensions + [n_extensions, n_jpl, n_outside, subj_chars, subj_words, n_links])
 
 # I'll probably end up being able to consolidate a lot of the training/testing code
 # but for now I'm keeping the models separate in case there are differences
@@ -143,6 +157,8 @@ if __name__ == "__main__":
             email_json = json.load(f)
         features = featurize_email(email_json, word_list)
         int_label = type_labels[str_label] 
+
+    X_train, X_test, y_train, y_test = train_test_split(feature_matrix, labels, test_size = 0.2)
 
     # Train the chosen model
     model = function_key[args.model](train_matrix, train_labels)
