@@ -2,6 +2,11 @@ import sqlite3 as sql
 import json
 import re
 import csv
+from collections import Counter
+import re
+from nltk.corpus import stopwords
+
+stops = set(stopwords.words("english"))
 
 def parse_attachments(email_json):
     temp_row = []
@@ -12,6 +17,19 @@ def parse_attachments(email_json):
             else:
                 temp_row.append([attachment["filename"], attachment["size"], "none"])
     return temp_row
+
+def add_body_words(email_json):
+    words = []
+    for item in email_json["body"]:
+        temp_words = item["content"].split()
+        for word in temp_words:
+            # Cull some things we don't want. Very long words are probably links and such
+            # May also want to cut out stop words here.
+            if len(word) > 15 or re.search(":", word) is not None or word.isalpha() is False or word in stops:
+                continue
+            words.append(word)
+
+    return words
 
 def count_jpl_emails(email_json):
    
@@ -46,6 +64,7 @@ if __name__ == "__main__":
     jpl_email_histogram = {}
     jpl_forwarders = {}
     jpl_attachments = []
+    words = []
 
     for fname in filenames:
         with open(fname, "r") as f:
@@ -64,6 +83,8 @@ if __name__ == "__main__":
             jpl_forwarders[to_email] = 1
         jpl_attachments += parse_attachments(email_json)
 
+        words += add_body_words(email_json)
+
     with open("jpl_count_histogram.csv", "w") as f:
         for key in jpl_email_histogram:
             f.write("{},{}\n".format(key, jpl_email_histogram[key]))
@@ -79,3 +100,9 @@ if __name__ == "__main__":
     with open("jpl_attachments.csv", "w") as f:
         fwriter = csv.writer(f)
         fwriter.writerows(jpl_attachments)
+
+    with open("common_words_2k.json", "w") as f:
+        word_dict = Counter(words)
+        word_list = word_dict.most_common(2000)
+        print(word_dict[0], word_dict[-1])
+        json.dump(word_list, f, indent=2)

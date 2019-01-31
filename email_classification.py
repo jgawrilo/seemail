@@ -15,7 +15,7 @@ from collections import Counter
 from sklearn.naive_bayes import MultinomialNB, GaussianNB, BernoulliNB
 from sklearn.svm import SVC, NuSVC, LinearSVC
 
-def featurize_email(email_json):
+def featurize_email(email_json, word_list):
     n_subsections = len(email_json["body"])
     jpl_addresses = []
     outside_addresses = []
@@ -43,6 +43,12 @@ def featurize_email(email_json):
 
     content_type = email_json["body"][0]["content_type"]
 
+    # See if there are links
+    n_links = 0
+    for item in email_json["body"]:
+        if "uri" in item:
+            n_links += len(item["uri"])
+
     if "attachments" in email_json:
         n_attachments = len(email_json["attachments"])
     else:
@@ -67,6 +73,8 @@ def featurize_email(email_json):
             else:
                 att_extensions[extension_indices[attachment["extension"]]] += 1
 
+    return att_extensions + [n_extensions, n_jpl, n_outside, subj_chars, subj_words, n_links]
+
 def run_svm():
     pass
 
@@ -87,6 +95,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     function_key = {"SVM": run_svm,
-                    "NB": run_naive_bayes}
+                    "NB": run_naive_bayes,
+                    "KNN": run_knn,
+                    "RF": run_random_forest}
 
     res = function_key[args.model]()
