@@ -16,6 +16,7 @@ from sklearn.naive_bayes import MultinomialNB, GaussianNB, BernoulliNB
 from sklearn.svm import SVC, NuSVC, LinearSVC
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KNeighborsClassifier
 
 def featurize_email(email_json, word_list):
     n_subsections = len(email_json["body"])
@@ -93,7 +94,7 @@ def featurize_email(email_json, word_list):
 # I'll probably end up being able to consolidate a lot of the training/testing code
 # but for now I'm keeping the models separate in case there are differences
 
-def run_svm(train_matrix, train_labels):
+def run_svm(X_train, y_train):
     model = LinearSVC()
     model.fit(train_matrix, train_labels)
     return model
@@ -103,8 +104,7 @@ def run_naive_bayes(train_matrix, train_labels):
     model.fit(train_matrix, train_labels)
     return model
 
-def run_knn():
-    
+def run_knn(): 
     pass
 
 def run_random_forest():
@@ -114,12 +114,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-m", "--model", type = str, default = "SVM",
                         help = "Model to use for classification")
-    parser.add_argument("-w", "--ords", type = str, help = "Word dictionary (well, list) json file")
+    parser.add_argument("-w", "--words", type = str, help = "Word dictionary (well, list) json file")
     args = parser.parse_args()
 
-    function_key = {"SVM": run_svm,
-                    "NB": run_naive_bayes,
-                    "KNN": run_knn,
+    function_key = {"SVM": LinearSVC(),
+                    "NB": MultinomialNB(),
+                    "KNN": KNeighborsClassifier(n_neighbors=5),
                     "RF": run_random_forest}
 
     # Note: I'm putting the Credential Phishing and Phishing Training emails both under Phishing
@@ -164,7 +164,7 @@ if __name__ == "__main__":
             feature_matrix = features
         else:
             # Figure out best way to stack
-            feature_matrix.hstack()
+            feature_matrix = feature_matrix.vstack([feature_matrix, features])
         labels.append(type_labels[str_label])
 
     labels = np.array(labels)
@@ -176,7 +176,7 @@ if __name__ == "__main__":
     X_test = scaler.transform(X_test)
 
     # Train the chosen model
-    model = function_key[args.model](X_train, X_train)
+    model = function_key[args.model].fit(X_train, y_train)
 
     # Run test on the trained model to check performance
     res = model.predict(X_test)
