@@ -15,6 +15,7 @@ from collections import Counter
 from sklearn.naive_bayes import MultinomialNB, GaussianNB, BernoulliNB
 from sklearn.svm import SVC, NuSVC, LinearSVC
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 
 def featurize_email(email_json, word_list):
     n_subsections = len(email_json["body"])
@@ -93,7 +94,7 @@ def featurize_email(email_json, word_list):
 # but for now I'm keeping the models separate in case there are differences
 
 def run_svm(train_matrix, train_labels):
-    model = LInearSVC()
+    model = LinearSVC()
     model.fit(train_matrix, train_labels)
     return model
 
@@ -103,6 +104,7 @@ def run_naive_bayes(train_matrix, train_labels):
     return model
 
 def run_knn():
+    
     pass
 
 def run_random_forest():
@@ -147,6 +149,8 @@ if __name__ == "__main__":
         print("Loaded word dictionary of {} words".format(len(word_list)))
 
     # Parse all the emails to create training/test matrices and labels
+    feature_matrix = []
+    labels = []
     for fname in filenames:
         str_label = fname.split("/")[-2]
         if str_label == "Unknown":
@@ -156,13 +160,24 @@ if __name__ == "__main__":
         with open(fname, "r") as f:
             email_json = json.load(f)
         features = featurize_email(email_json, word_list)
-        int_label = type_labels[str_label] 
+        if feature_matrix == []:
+            feature_matrix = features
+        else:
+            # Figure out best way to stack
+            feature_matrix.hstack()
+        labels.append(type_labels[str_label])
 
+    labels = np.array(labels)
+
+    # Split data to train and test and scale 
     X_train, X_test, y_train, y_test = train_test_split(feature_matrix, labels, test_size = 0.2)
+    scaler = StandardScaler().fit(X_train)
+    X_train = scaler.transform(X_train)
+    X_test = scaler.transform(X_test)
 
     # Train the chosen model
-    model = function_key[args.model](train_matrix, train_labels)
+    model = function_key[args.model](X_train, X_train)
 
     # Run test on the trained model to check performance
-    res = model.predict(test_matrix)
-
+    res = model.predict(X_test)
+    print(confusion_matrix(y_test, res))
