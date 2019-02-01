@@ -10,21 +10,29 @@ import json
 import argparse
 import re
 import os
+import sqlite3 as sql
 import numpy as np
+from datetime import datetime
 from collections import Counter
 from sklearn.naive_bayes import MultinomialNB, GaussianNB, BernoulliNB
 from sklearn.svm import SVC, NuSVC, LinearSVC
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import KNeighborsClassifier
+from nltk.corpus import stopwords
+
+stops = set(stopwords.words("english"))
 
 def featurize_email(email_json, word_indices):
     n_subsections = len(email_json["body"])
+    email_addresses = []
     jpl_addresses = []
     outside_addresses = []
+    i = 0
     while i < n_subsections:
         try:
             email_addresses = email_json["body"][i]["email"]
+            break
         except:
             i += 1
     if email_addresses == []:
@@ -69,7 +77,7 @@ def featurize_email(email_json, word_indices):
     # Might make this a numpy array...
     att_extensions = [0] * len(extensions)
     att_sizes = []
-    if len(n_attachments) > 0:
+    if n_attachments > 0:
         for attachment in email_json["attachments"]:
             if "extension" not in attachment:
                 att_extensions[extension_indices["none"]] += 1
@@ -88,11 +96,11 @@ def featurize_email(email_json, word_indices):
             words.append(word)
     word_counter = Counter(words)
     encoded_words = [0] * len(word_indices)
-    for word in word_counter:
+    for word in word_counter.items():
         if word[0] in word_indices:
             encoded_words[word_indices[word[0]]] = word[1]
 
-    return np.array(att_extensions + [n_extensions, n_jpl, n_outside, subj_chars, subj_words, n_links] + encoded_words)
+    return np.array(att_extensions + [n_jpl, n_outside, subj_chars, subj_words, n_links] + encoded_words)
 
 # I'll probably end up being able to consolidate a lot of the training/testing code
 # but for now I'm keeping the models separate in case there are differences
@@ -118,6 +126,8 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--model", type = str, default = "SVM",
                         help = "Model to use for classification")
     parser.add_argument("-w", "--words", type = str, help = "Word dictionary (well, list) json file")
+    parser.add_argument("-f", "--features", type = str, help = "numpy save file with feature matrix")
+    parser.add_argument("-l", "--labels", type = str, help = "numpy save file with label vector")
     args = parser.parse_args()
 
     function_key = {"SVM": LinearSVC(),
@@ -135,12 +145,15 @@ if __name__ == "__main__":
                    "Spam": 6}
 
     # Get filenames from database
-    conn = sql.connect("/home/user-data/mail/jpl_emails.sqlite")
+    #conn = sql.connect("/home/user-data/mail/jpl_emails.sqlite")
+    conn = sql.connect("/home/rosteen/Work/seemail/jpl_emails.sqlite")
     cur = conn.cursor()
     filenames = []
     res = cur.execute("select * from abuse").fetchall()
     for row in res:
         filenames.append(row[2])
+
+    print(filenames[0])
 
     # Load list of words for word frequency features
     if args.words:
@@ -157,12 +170,15 @@ if __name__ == "__main__":
     # Parse all the emails to create training/test matrices and labels
     feature_matrix = []
     labels = []
+    n = 0
     for fname in filenames:
         str_label = fname.split("/")[-2]
         if str_label == "Unknown":
             continue
-        elif re.search("Phishing", input_label) is not None:
-            input_label = "Phishing"
+        elif re.search("Phishing", str_label) is not None:
+            str_label = "Phishing"
+        elif str_label == "False Positive":
+            str_label = "Not Spam"
         with open(fname, "r") as f:
             email_json = json.load(f)
         features = featurize_email(email_json, word_indices)
@@ -170,10 +186,17 @@ if __name__ == "__main__":
             feature_matrix = features
         else:
             # Figure out best way to stack
-            feature_matrix = feature_matrix.vstack([feature_matrix, features])
+            feature_matrix = np.vstack([feature_matrix, features])
         labels.append(type_labels[str_label])
+        n += 1
+        if n % 10 == 0:
+            print("{} : Featurized {} files".format(datetime.now(), n))
 
     labels = np.array(labels)
+
+    print("Created feature matrix and labels")
+    np.save("feature_matrix.npy", feature_matrix)
+    np.save("label_vector.npy", labels)
 
     # Split data to train and test and scale 
     X_train, X_test, y_train, y_test = train_test_split(feature_matrix, labels, test_size = 0.2)
@@ -182,9 +205,11 @@ if __name__ == "__main__":
     X_test = scaler.transform(X_test)
 
     # Train the chosen model
+    print("Training model")
     model = function_key[args.model].fit(X_train, y_train)
 
     # Run test on the trained model to check performance
+    print("Making predictions for test set")
     res = model.predict(X_test)
     print(confusion_matrix(y_test, res))
     print(classification_report(y_test, res))
