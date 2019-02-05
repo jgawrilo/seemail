@@ -16,9 +16,11 @@ from datetime import datetime
 from collections import Counter
 from sklearn.naive_bayes import MultinomialNB, GaussianNB, BernoulliNB
 from sklearn.svm import SVC, NuSVC, LinearSVC
-from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split, KFold
 from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import confusion_matrix, classification_report
 from nltk.corpus import stopwords
 
 stops = set(stopwords.words("english"))
@@ -32,11 +34,13 @@ def featurize_email(email_json, word_indices):
     while i < n_subsections:
         try:
             email_addresses = email_json["body"][i]["email"]
-            break
         except:
             i += 1
+            continue
+        break
     if email_addresses == []:
         print("No email addresses found")
+        i = 0
     # Divide email addresses into JPL and non-JPL
     for address in email_addresses:
         if re.search("nasa.gov", address) is not None:
@@ -47,7 +51,12 @@ def featurize_email(email_json, word_indices):
     n_jpl = len(jpl_addresses)
     n_outside = len(outside_addresses)
 
-    content = email_json["body"][i]["content"]
+    try:
+        content = email_json["body"][i]["content"]
+    except:
+        print(email_json["body"])
+        print(i)
+        raise
     subject = content.split("Subject: ")[-1].split("\n")[0]
     subj_chars = len(subject)
     subj_words = len(subject.split(" "))
@@ -102,38 +111,21 @@ def featurize_email(email_json, word_indices):
 
     return np.array(att_extensions + [n_jpl, n_outside, subj_chars, subj_words, n_links] + encoded_words)
 
-# I'll probably end up being able to consolidate a lot of the training/testing code
-# but for now I'm keeping the models separate in case there are differences
-
-def run_svm(X_train, y_train):
-    model = LinearSVC()
-    model.fit(train_matrix, train_labels)
-    return model
-
-def run_naive_bayes(train_matrix, train_labels):
-    model = MultinomialNB()
-    model.fit(train_matrix, train_labels)
-    return model
-
-def run_knn(): 
-    pass
-
-def run_random_forest():
-    pass
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-m", "--model", type = str, default = "SVM",
                         help = "Model to use for classification")
     parser.add_argument("-w", "--words", type = str, help = "Word dictionary (well, list) json file")
-    parser.add_argument("-f", "--features", type = str, help = "numpy save file with feature matrix")
-    parser.add_argument("-l", "--labels", type = str, help = "numpy save file with label vector")
+    parser.add_argument("-f", "--features", type = str, 
+            help = "Numpy save file with feature matrix. Must also specify labels file")
+    parser.add_argument("-l", "--labels", type = str, 
+            help = "Numpy save file with label vector. Must also specify features file")
     args = parser.parse_args()
 
-    function_key = {"SVM": LinearSVC(),
+    function_key = {"SVC": LinearSVC(),
                     "NB": MultinomialNB(),
                     "KNN": KNeighborsClassifier(n_neighbors=5),
-                    "RF": run_random_forest}
+                    "RF": RandomForestClassifier()}
 
     # Note: I'm putting the Credential Phishing and Phishing Training emails both under Phishing
     type_labels = {"Not Spam": 0,
@@ -181,35 +173,47 @@ if __name__ == "__main__":
             str_label = "Not Spam"
         with open(fname, "r") as f:
             email_json = json.load(f)
-        features = featurize_email(email_json, word_indices)
-        if feature_matrix == []:
-            feature_matrix = features
-        else:
-            # Figure out best way to stack
-            feature_matrix = np.vstack([feature_matrix, features])
-        labels.append(type_labels[str_label])
+        if not args.features:
+            features = featurize_email(email_json, word_indices)
+            if feature_matrix == []:
+                feature_matrix = features
+            else:
+                # Figure out best way to stack
+                feature_matrix = np.vstack([feature_matrix, features])
+            labels.append(type_labels[str_label])
         n += 1
-        if n % 10 == 0:
-            print("{} : Featurized {} files".format(datetime.now(), n))
-
-    labels = np.array(labels)
+        if n % 1000 == 0:
+            print("{} : Processed {} files".format(datetime.now(), n))
+    
+    if args.features:
+        feature_matrix = np.load(args.features)
+        labels = np.load(args.labels)
+    else:
+        labels = np.array(labels)
 
     print("Created feature matrix and labels")
     np.save("feature_matrix.npy", feature_matrix)
     np.save("label_vector.npy", labels)
 
     # Split data to train and test and scale 
-    X_train, X_test, y_train, y_test = train_test_split(feature_matrix, labels, test_size = 0.2)
-    scaler = StandardScaler().fit(X_train)
-    X_train = scaler.transform(X_train)
-    X_test = scaler.transform(X_test)
+    #X_train, X_test, y_train, y_test = train_test_split(feature_matrix, labels, test_size = 0.4)
+    kf = KFold(n_splits = 5, shuffle = True)
+    kf.get_n_splits(feature_matrix)
+    for train_index, test_index in kf.split(feature_matrix):
+        X_train, X_test = feature_matrix[train_index,], feature_matrix[test_index]
+        y_train, y_test = labels[train_index,], labels[test_index]
+   
+        if args.model in ("SVC", "KNN", "RF"):
+            scaler = StandardScaler().fit(X_train)
+            X_train = scaler.transform(X_train)
+            X_test = scaler.transform(X_test)
 
-    # Train the chosen model
-    print("Training model")
-    model = function_key[args.model].fit(X_train, y_train)
+        # Train the chosen model
+        print("Training model")
+        model = function_key[args.model].fit(X_train, y_train)
 
-    # Run test on the trained model to check performance
-    print("Making predictions for test set")
-    res = model.predict(X_test)
-    print(confusion_matrix(y_test, res))
-    print(classification_report(y_test, res))
+        # Run test on the trained model to check performance
+        print("Making predictions for test set")
+        res = model.predict(X_test)
+        print(confusion_matrix(y_test, res))
+        print(classification_report(y_test, res))
