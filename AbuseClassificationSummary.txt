@@ -14,6 +14,12 @@ In addition to counts of the most frequent words in the Abuse data set, the feat
  * Number of characters and words in the email subject
  * Number of attachments and count of each attachment extension present in the dataset in the email
 
+### Possible Improvements
+
+I haven't done anything to ensure that the same email wasn't sent to multiple users, so there is a small chance that in some cases an identical email is in the test and train sets, which would artificially improve the accuracy. These should ideally be accounted for, if they exist. The common words list also includes some thing that should probably be removed, e.g. first names. Additional features could be built from e.g. email header information, which is currently unused.
+
+In terms of the models themselves, since these fits resulted from using out-of-the-box scikit-learn models with the default parameters, there is certainly room for improvement based on optimizing the model parameters. 
+
 ### Model Results
 
 Each model was run with the default scikit-learn settings. I dropped the "Unknown" category from the JPL Abuse set, and combined the "Spear Phishing" and "Phishing Training" categories into one Phishing category. Results below are typical/median results from the kfolds, not actual averages of the different runs.
