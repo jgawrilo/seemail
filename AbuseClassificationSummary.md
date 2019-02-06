@@ -32,6 +32,7 @@ Confusion matrix
 
 Accuracy measures
 
+
 | category precision | recall | f1-score support |
 |---|---|---|---|
 | Not Spam | 0.80 | 0.42 | 0.55 | 117 |
@@ -59,6 +60,7 @@ Confusion matrix
  [  2  89  16 1 1  10 145]]
 
 Accuracy measures
+
 
 | category | precision | recall | f1-score | support |
 |---|---|---|---|
@@ -88,6 +90,7 @@ Confusion matrix
 
 Accuracy measures
 
+
 |category | precision | recall | f1-score | support |
 |---|---|---|---|
 | Not Spam | 0.86 | 0.88 | 0.87 | 104 |
@@ -115,6 +118,7 @@ Confusion matrix
  [ 0 14  7  0  0  2  223]]
 
 Accuracy measures
+
 
 | category | precision | recall | f1-score | support |
 |---|---|---|---|
