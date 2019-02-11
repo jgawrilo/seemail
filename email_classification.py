@@ -26,14 +26,15 @@ import network_graph as ng
 
 stops = set(stopwords.words("english"))
 
-def graph_features(from_address, to_address, G):
+def graph_features(from_address, to_address, G, cur):
     features = []
+    from_ind = ng.email_address_index(cur, from_address)
+    to_ind = ng.email_address_index(cur, to_address)
     
-
 
     return features
 
-def featurize_email(email_json, word_indices, G):
+def featurize_email(email_json, word_indices, cur, G):
     n_subsections = len(email_json["body"])
     email_addresses = []
     jpl_addresses = []
@@ -118,7 +119,7 @@ def featurize_email(email_json, word_indices, G):
             encoded_words[word_indices[word[0]]] = word[1]
 
     # Get features from email network graph structure/user state
-    graph_features = graph_features(from_email, to_email, G)
+    graph_features = graph_features(from_email, to_email, G, cur)
 
     return np.array(att_extensions + [n_jpl, n_outside, subj_chars, subj_words, n_links] + graph_features + encoded_words)
 
@@ -190,7 +191,7 @@ if __name__ == "__main__":
         with open(fname, "r") as f:
             email_json = json.load(f)
         if not args.features:
-            features = featurize_email(email_json, word_indices)
+            features = featurize_email(email_json, word_indices, cur, G)
             if feature_matrix == []:
                 feature_matrix = features
             else:
