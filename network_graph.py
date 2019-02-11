@@ -25,11 +25,11 @@ def email_address_index(cur, email_address):
 # Check if from->to is already an edge and either add it if not, 
 # or add timestamp to existing edge
 def process_edge(G, from_ind, to_ind, ts):
-    if not G.has_edge(from_ind, to_ind)
-            G.add_edge(from_ind, to_ind)
-            G[from_ind][to_ind]["timestamps"] = sortedlist([ts])
-        else:
-            G[from_ind][to_ind]["timestamps"].add(ts)
+    if not G.has_edge(from_ind, to_ind):
+        G.add_edge(from_ind, to_ind)
+        G[from_ind][to_ind]["timestamps"] = sortedlist([ts])
+    else:
+        G[from_ind][to_ind]["timestamps"].add(ts)
     return G
 
 # Add information to graph from either email file or json data

@@ -22,10 +22,18 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import confusion_matrix, classification_report
 from nltk.corpus import stopwords
+import network_graph as ng
 
 stops = set(stopwords.words("english"))
 
-def featurize_email(email_json, word_indices):
+def graph_features(from_address, to_address, G):
+    features = []
+    
+
+
+    return features
+
+def featurize_email(email_json, word_indices, G):
     n_subsections = len(email_json["body"])
     email_addresses = []
     jpl_addresses = []
@@ -109,7 +117,10 @@ def featurize_email(email_json, word_indices):
         if word[0] in word_indices:
             encoded_words[word_indices[word[0]]] = word[1]
 
-    return np.array(att_extensions + [n_jpl, n_outside, subj_chars, subj_words, n_links] + encoded_words)
+    # Get features from email network graph structure/user state
+    graph_features = graph_features(from_email, to_email, G)
+
+    return np.array(att_extensions + [n_jpl, n_outside, subj_chars, subj_words, n_links] + graph_features + encoded_words)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -120,6 +131,8 @@ if __name__ == "__main__":
             help = "Numpy save file with feature matrix. Must also specify labels file")
     parser.add_argument("-l", "--labels", type = str, 
             help = "Numpy save file with label vector. Must also specify features file")
+    parser.add_argument("-g", "--graph", type = str, 
+            help = "Pickled network graph of connections between email addresses")
     args = parser.parse_args()
 
     function_key = {"SVC": LinearSVC(),
@@ -158,6 +171,9 @@ if __name__ == "__main__":
         for i in range(0, len(word_list)):
             word_indices[word_list[i]] = i
         print("Loaded word dictionary of {} words".format(len(word_list)))
+
+    # Load email network graph
+    G = nx.read_pickle(args.graph)
 
     # Parse all the emails to create training/test matrices and labels
     feature_matrix = []
