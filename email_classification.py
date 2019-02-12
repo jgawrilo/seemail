@@ -1,8 +1,8 @@
 ###############################################################################
-# Run some simple classification models on the JPL Abuse dataset to get an 
-# initial look at what baseline performance is. 
+# Run some simple classification models on the JPL Abuse dataset to get an
+# initial look at what baseline performance is.
 #
-# Some code shamelessly based off of 
+# Some code shamelessly based off of
 # https://www.kdnuggets.com/2017/03/email-spam-filtering-an-implementation-with-python-and-scikit-learn.html
 ###############################################################################
 
@@ -22,6 +22,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import confusion_matrix, classification_report
 from nltk.corpus import stopwords
+import networkx as nx
 import network_graph as ng
 
 stops = set(stopwords.words("english"))
@@ -30,7 +31,21 @@ def graph_features(from_address, to_address, G, cur):
     features = []
     from_ind = ng.email_address_index(cur, from_address)
     to_ind = ng.email_address_index(cur, to_address)
-    
+
+    # See if the sender email address is a pure sender or actually has received emails as well
+    sender_ratio = G.in_degree(from_ind) / (G.out_degree(from_ind) + 0.1)
+
+    # See if there is a path from the recipient to the sender, get length of shortest such path
+    from_to_path = int(nx.has_path(G, from_ind, to_ind))
+
+    #Do we need path length at all?
+    if from_to_path:
+        from_to_path_len = nx.shortest_path_length(G, from_ind, to_ind)
+    else:
+        # Should this be none, or e.g. set
+        from_to_path_len = None
+
+    # More features from user graph?
 
     return features
 
@@ -84,9 +99,9 @@ def featurize_email(email_json, word_indices, cur, G):
         n_attachments = 0
 
     # Make a one-hot variable the set of extensions.
-    extensions = ['jpg', 'png', 'p7m', 'none', 'txt', 'htm', 'pdf', 'docx', 
-                  'ics', 'gif', 'bmp', 'pptx', 'doc', 'zip', 'xls', 'xlsx', 
-                  'html', 'aspx', 'xml', 'jar', 'rar', 'tiff', '05', 'jpeg', 
+    extensions = ['jpg', 'png', 'p7m', 'none', 'txt', 'htm', 'pdf', 'docx',
+                  'ics', 'gif', 'bmp', 'pptx', 'doc', 'zip', 'xls', 'xlsx',
+                  'html', 'aspx', 'xml', 'jar', 'rar', 'tiff', '05', 'jpeg',
                   'ace', 'wav', 'm4a', 'vcf', '3gp', 'avi']
     extension_indices = {}
     # Build index reference dictionary
@@ -102,7 +117,7 @@ def featurize_email(email_json, word_indices, cur, G):
             else:
                 att_extensions[extension_indices[attachment["extension"]]] += 1
 
-    # Encode occurence in this email of the top words from the whole set. 
+    # Encode occurence in this email of the top words from the whole set.
     words = []
     for item in email_json["body"]:
         temp_words = item["content"].split()
@@ -128,11 +143,11 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--model", type = str, default = "SVM",
                         help = "Model to use for classification")
     parser.add_argument("-w", "--words", type = str, help = "Word dictionary (well, list) json file")
-    parser.add_argument("-f", "--features", type = str, 
+    parser.add_argument("-f", "--features", type = str,
             help = "Numpy save file with feature matrix. Must also specify labels file")
-    parser.add_argument("-l", "--labels", type = str, 
+    parser.add_argument("-l", "--labels", type = str,
             help = "Numpy save file with label vector. Must also specify features file")
-    parser.add_argument("-g", "--graph", type = str, 
+    parser.add_argument("-g", "--graph", type = str,
             help = "Pickled network graph of connections between email addresses")
     args = parser.parse_args()
 
@@ -201,7 +216,7 @@ if __name__ == "__main__":
         n += 1
         if n % 1000 == 0:
             print("{} : Processed {} files".format(datetime.now(), n))
-    
+
     if args.features:
         feature_matrix = np.load(args.features)
         labels = np.load(args.labels)
@@ -212,14 +227,14 @@ if __name__ == "__main__":
     np.save("feature_matrix.npy", feature_matrix)
     np.save("label_vector.npy", labels)
 
-    # Split data to train and test and scale 
+    # Split data to train and test and scale
     #X_train, X_test, y_train, y_test = train_test_split(feature_matrix, labels, test_size = 0.4)
     kf = KFold(n_splits = 5, shuffle = True)
     kf.get_n_splits(feature_matrix)
     for train_index, test_index in kf.split(feature_matrix):
         X_train, X_test = feature_matrix[train_index,], feature_matrix[test_index]
         y_train, y_test = labels[train_index,], labels[test_index]
-   
+
         if args.model in ("SVC", "KNN", "RF"):
             scaler = StandardScaler().fit(X_train)
             X_train = scaler.transform(X_train)
