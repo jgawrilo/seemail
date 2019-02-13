@@ -13,6 +13,7 @@ import os
 import joblib
 import sqlite3 as sql
 import numpy as np
+from sortedcontainers import SortedList
 from datetime import datetime
 from collections import Counter
 from sklearn.naive_bayes import MultinomialNB, GaussianNB, BernoulliNB
@@ -28,7 +29,7 @@ import network_graph as ng
 
 stops = set(stopwords.words("english"))
 
-def graph_features(from_address, to_address, G, cur):
+def graph_features(from_address, to_address, email_ts, G, cur):
     features = []
     from_ind = ng.email_address_index(cur, from_address)
     to_ind = ng.email_address_index(cur, to_address)
@@ -40,15 +41,25 @@ def graph_features(from_address, to_address, G, cur):
     from_to_path = int(nx.has_path(G, from_ind, to_ind))
 
     #Do we need path length at all?
-    if from_to_path:
-        from_to_path_len = nx.shortest_path_length(G, from_ind, to_ind)
-    else:
-        # Should this be none, or e.g. set
-        from_to_path_len = None
+    #if from_to_path:
+    #    from_to_path_len = nx.shortest_path_length(G, from_ind, to_ind)
+    #else:
+    #    # Should this be None?
+    #    from_to_path_len = None
 
     # More features from user graph?
+    # Timing of recent emails from sender
+    all_sender_timestamps = []
+    for edge in G.out_edges_iter(nbunch = [from_ind]):
+        all_sender_timestamps += edge["timestamps"]
+    ts_sorted = SortedList(all_sender_timestamps)
+    last_minute = ts_sorted.irange()
+    last_hour = ts_sorted.irange()
+    last_day = ts_sorted.irange()
 
-    return features
+    # Burst detection
+
+    return [sender_ratio, from_to_path]
 
 def featurize_email(email_json, word_indices, cur, G):
     n_subsections = len(email_json["body"])
@@ -135,7 +146,7 @@ def featurize_email(email_json, word_indices, cur, G):
             encoded_words[word_indices[word[0]]] = word[1]
 
     # Get features from email network graph structure/user state
-    graph_features = graph_features(from_email, to_email, G, cur)
+    graph_features = graph_features(from_email, to_email, email_ts, G, cur)
 
     return np.array(att_extensions + [n_jpl, n_outside, subj_chars, subj_words, n_links] + graph_features + encoded_words)
 

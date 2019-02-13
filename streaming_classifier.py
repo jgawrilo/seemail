@@ -37,6 +37,10 @@ def main(topic, model_file, graph_file, word_file, model_type):
 
         email_features = ec.featurize_email(email_json, word_indices, cur, G)
         prediction = M.predict(email_features)
+        # Where do we want to send the prediction? Just print it out for now
+        print("Model prediction: {}".format(prediction))
+
+        # Also need to update the network graph and database
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
