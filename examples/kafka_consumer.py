@@ -3,8 +3,8 @@ import json
 import argparse
 
 def main(topic):
-    # This will constantly poll for new items coming off the topic
-    consumer = kafka.KafkaConsumer(topic)
+    # This will constantly poll for new items coming off the topic from the remote machine
+    consumer = kafka.KafkaConsumer(topic, bootstrap_servers="box.chunkman.com:9092")
     for message in consumer:
         print("{}:{}:{}: key={} value=".format(message.topic, message.partition,
                                           message.offset, message.key))
