@@ -77,6 +77,7 @@ def featurize_email(email_json, word_indices, cur, G):
     if email_addresses == []:
         print("No email addresses found")
         i = 0
+    
     # Divide email addresses into JPL and non-JPL
     for address in email_addresses:
         if re.search("nasa.gov", address) is not None:

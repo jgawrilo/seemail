@@ -42,6 +42,10 @@ def process_email(G, filename = None, email_json = None, timestamp = None):
     else:
         print("Error: Either email filename OR email json must be provided")
         sys.exit(1)
+
+    # Parse email addresses out of forwarded emails
+    to_ind = email_address
+
     # NOTE - this will work when we get original emails, for the
     # current set of forwards getting to/from requires more work.
     # Also need to see if cc/bcc show up in to list or separate headers
