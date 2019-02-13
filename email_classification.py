@@ -10,6 +10,7 @@ import json
 import argparse
 import re
 import os
+import joblib
 import sqlite3 as sql
 import numpy as np
 from datetime import datetime
@@ -138,6 +139,8 @@ def featurize_email(email_json, word_indices, cur, G):
 
     return np.array(att_extensions + [n_jpl, n_outside, subj_chars, subj_words, n_links] + graph_features + encoded_words)
 
+###############################################################################
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-m", "--model", type = str, default = "SVM",
@@ -249,3 +252,6 @@ if __name__ == "__main__":
         res = model.predict(X_test)
         print(confusion_matrix(y_test, res))
         print(classification_report(y_test, res))
+    
+    # Save out the last kfold 
+    joblib.dump(model, "trained_model.joblib")
