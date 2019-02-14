@@ -70,7 +70,7 @@ def process_email(G, filename = None, email_json = None, timestamp = None,
     return G
 
 # Create a new graph from a set of email files
-def initialize_graph():
+def initialize_graph(fwd = False):
     conn = sql.connect("/home/user-data/mail/jpl_emails.sqlite")
     cur = conn.cursor()
     filenames = []
@@ -82,7 +82,8 @@ def initialize_graph():
     G = nx.DiGraph()
     
     for i in range(0, len(filenames)):
-        G = process_email(G, filename = filenames[i], timestamp = timestamps[i])
+        G = process_email(G, filename = filenames[i], 
+                timestamp = timestamps[i], fwd = fwd)
 
     return G
 
@@ -92,11 +93,13 @@ if __name__ == "__main__":
             help = "Flag to create a new graph rather than adding to one")
     parser.add_argument("-g", "--graph", type = str,
             help = "File with existing graph structure")
+    parser.add_argument("-f", "--forwards", action = "store_true", 
+            help = "Flag to deal with forwarded emails rather than originals")
     args = parser.parse_args()
 
     # Load previously generated graph or create new one
     if args.create:
-        G = initialize_graph()
+        G = initialize_graph(args.forwards)
         nx.write_pickle(G, args.graph)
     else:
         G = nx.read_gpickle(args.graph)
