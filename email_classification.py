@@ -29,29 +29,6 @@ import network_graph as ng
 
 stops = set(stopwords.words("english"))
 
-import re
-
-# Get from/to email addresses from email text body
-def parse_from_to(body):
-    lines = body[-1]["content"].split("\n")
-    for line in lines:
-        if line[0:5] == "From:":
-            if re.search("<", line) is not None:
-                from_address = line.split("<")[-1].split(">")[0]
-        elif line[0:3] == "To:":
-            to_addresses = []
-            if re.search("undisclosed-recipients", line) is not None:
-                to_addresses = None
-            to_split = line.split("<")
-            if len to_split > 1:
-                for temp in to_split[1:]:
-                    to_addresses.append(temp.split(">")[0])
-            else:
-                to_addresses = None
-
-    print from_address, to_addresses
-    return from_address, to_addresses
-
 def graph_features(from_address, to_address, email_ts, G, cur):
     features = []
     from_ind = ng.email_address_index(cur, from_address)

@@ -8,6 +8,37 @@ from nltk.corpus import stopwords
 
 stops = set(stopwords.words("english"))
 
+# Get from/to email addresses from email text body
+def parse_from_to(body):
+    lines = body[-1]["content"].split("\n")
+    from_address = None
+    to_addresses = []
+    for line in lines:
+        if line[0:5] == "From:":
+            if re.search("<", line) is not None:
+                from_address = line.split("<")[-1].split(">")[0]
+            elif re.search("mailto:", line) is not None:
+                from_address = line.split("mailto:")[-1].split("]")[0]
+            elif re.search("\[", line) is not None:
+                from_address = line.split("[")[-1].split("]")[0]
+            else:
+                print(line)
+        elif line[0:3] == "To:" or line[0:3] == "Cc:":
+            if re.search("undisclosed-recipients", line) is not None:
+                continue
+            to_split = line.split("<")
+            if len(to_split) > 1:
+                for temp in to_split[1:]:
+                    to_addresses.append(temp.split(">")[0])
+            else:
+                continue
+    try:
+        print(from_address, to_addresses)
+    except:
+        for line in lines:
+            print(line[0:10])
+    return from_address, to_addresses
+
 def parse_attachments(email_json):
     temp_row = []
     if "attachment" in email_json:

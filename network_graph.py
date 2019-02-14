@@ -9,15 +9,20 @@ import sqlite3 as sql
 import json
 from sortedcontainers import SortedList
 import sys
-from email_classification import parse_from_to
+from email_exploration import parse_from_to
 
 # Get the rowid for the email address, adding it to the database if needed
 def email_address_index(cur, email_address):
+    email_address = email_address.replace("'", "")
     stmt = "select rowid from email_addresses where address = '{}'".format(email_address)
     res = cur.execute(stmt).fetchall()
     if len(res) == 0:
-        stmt = "insert into email_addresses values ({})".format(email_address)
-        cur.execute(stmt)
+        stmt = "insert into email_addresses values ('{}')".format(email_address)
+        try:
+            cur.execute(stmt)
+        except:
+            print(stmt)
+            raise
         stmt = "select rowid from email_addresses where address = '{}'".format(email_address)
         res = cur.execute(stmt).fetchall()
 
@@ -28,13 +33,13 @@ def email_address_index(cur, email_address):
 def process_edge(G, from_ind, to_ind, ts):
     if not G.has_edge(from_ind, to_ind):
         G.add_edge(from_ind, to_ind)
-        G[from_ind][to_ind]["timestamps"] = sortedlist([ts])
+        G[from_ind][to_ind]["timestamps"] = SortedList([ts])
     else:
         G[from_ind][to_ind]["timestamps"].add(ts)
     return G
 
 # Add information to graph from either email file or json data
-def process_email(G, filename = None, email_json = None, timestamp = None, 
+def process_email(G, cur, filename = None, email_json = None, timestamp = None, 
                     fwd = False):
     if filename is not None and email_json is None:
         with open(filename, "r") as f:
@@ -48,10 +53,13 @@ def process_email(G, filename = None, email_json = None, timestamp = None,
     # Parse email addresses out of forwarded emails
     if fwd:
         from_address, to_addresses = parse_from_to(email_json["body"])
+        # Return without further ado if we couldn't parse a from address
+        if from_address is None:
+            return G
         from_ind = (cur, from_address)
         # If we couldn't parse out recipients, we at least know who at JPL
         # forwarded the email
-        if to_addresses = None:
+        if to_addresses is None:
             to_addresses = [email_json["header"]["from"]]
         # Update the graph with the edges
         for to_address in to_addresses:
@@ -71,7 +79,7 @@ def process_email(G, filename = None, email_json = None, timestamp = None,
 
 # Create a new graph from a set of email files
 def initialize_graph(fwd = False):
-    conn = sql.connect("/home/user-data/mail/jpl_emails.sqlite")
+    conn = sql.connect("/home/rosteen/Work/seemail/jpl_emails.sqlite")
     cur = conn.cursor()
     filenames = []
     timestamps = []
@@ -82,7 +90,8 @@ def initialize_graph(fwd = False):
     G = nx.DiGraph()
     
     for i in range(0, len(filenames)):
-        G = process_email(G, filename = filenames[i], 
+        print(filenames[i])
+        G = process_email(G, cur, filename = filenames[i], 
                 timestamp = timestamps[i], fwd = fwd)
 
     return G
