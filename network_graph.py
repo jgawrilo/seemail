@@ -9,6 +9,7 @@ import sqlite3 as sql
 import json
 from sortedcontainers import SortedList
 import sys
+from email_classification import parse_from_to
 
 # Get the rowid for the email address, adding it to the database if needed
 def email_address_index(cur, email_address):
@@ -33,7 +34,8 @@ def process_edge(G, from_ind, to_ind, ts):
     return G
 
 # Add information to graph from either email file or json data
-def process_email(G, filename = None, email_json = None, timestamp = None):
+def process_email(G, filename = None, email_json = None, timestamp = None, 
+                    fwd = False):
     if filename is not None and email_json is None:
         with open(filename, "r") as f:
             email_json = json.load(f)
@@ -44,17 +46,26 @@ def process_email(G, filename = None, email_json = None, timestamp = None):
         sys.exit(1)
 
     # Parse email addresses out of forwarded emails
-    to_ind = email_address
-
-    # NOTE - this will work when we get original emails, for the
-    # current set of forwards getting to/from requires more work.
-    # Also need to see if cc/bcc show up in to list or separate headers
-    from_ind = email_address_index(cur, email_json["header"]["from"])
-    # Check to see if there is already a from->to edge in the graph
-    # and either add one or add the timestamp to existing edge
-    for to_address in email_json["header"]["to"]:
-        to_ind = email_address_index(cur, to_address)
-        G = process_edge(G, from_ind, to_ind, timestamp)
+    if fwd:
+        from_address, to_addresses = parse_from_to(email_json["body"])
+        from_ind = (cur, from_address)
+        # If we couldn't parse out recipients, we at least know who at JPL
+        # forwarded the email
+        if to_addresses = None:
+            to_addresses = [email_json["header"]["from"]]
+        # Update the graph with the edges
+        for to_address in to_addresses:
+            to_ind = email_address_index(cur, to_address)
+            G = process_edge(G, from_ind, to_ind, timestamp)
+    # Or get them more easily if we have the original email parsed to json
+    else:
+        # Also need to see if cc/bcc show up in to list or separate headers
+        from_ind = email_address_index(cur, email_json["header"]["from"])
+        # Check to see if there is already a from->to edge in the graph
+        # and either add one or add the timestamp to existing edge
+        for to_address in email_json["header"]["to"]:
+            to_ind = email_address_index(cur, to_address)
+            G = process_edge(G, from_ind, to_ind, timestamp)
     
     return G
 
