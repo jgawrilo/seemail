@@ -56,7 +56,7 @@ def process_email(G, cur, filename = None, email_json = None, timestamp = None,
         # Return without further ado if we couldn't parse a from address
         if from_address is None:
             return G
-        from_ind = (cur, from_address)
+        from_ind = email_address_index(cur, from_address)
         # If we couldn't parse out recipients, we at least know who at JPL
         # forwarded the email
         if to_addresses is None:
@@ -90,7 +90,7 @@ def initialize_graph(fwd = False):
     G = nx.DiGraph()
     
     for i in range(0, len(filenames)):
-        print(filenames[i])
+        #print(filenames[i])
         G = process_email(G, cur, filename = filenames[i], 
                 timestamp = timestamps[i], fwd = fwd)
 
@@ -109,7 +109,7 @@ if __name__ == "__main__":
     # Load previously generated graph or create new one
     if args.create:
         G = initialize_graph(args.forwards)
-        nx.write_pickle(G, args.graph)
+        nx.write_gpickle(G, args.graph)
     else:
         G = nx.read_gpickle(args.graph)
         

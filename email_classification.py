@@ -25,15 +25,17 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import confusion_matrix, classification_report
 from nltk.corpus import stopwords
 import networkx as nx
+import email_exploration as ee
 import network_graph as ng
 
 stops = set(stopwords.words("english"))
 
-def graph_features(from_address, to_address, email_ts, G, cur):
+def get_graph_features(from_address, to_address, email_ts, G, cur):
     features = []
     from_ind = ng.email_address_index(cur, from_address)
     to_ind = ng.email_address_index(cur, to_address)
 
+    print(from_ind, to_ind)
     # See if the sender email address is a pure sender or actually has received emails as well
     sender_ratio = G.in_degree(from_ind) / (G.out_degree(from_ind) + 0.1)
 
@@ -50,8 +52,8 @@ def graph_features(from_address, to_address, email_ts, G, cur):
     # More features from user graph?
     # Timing of recent emails from sender
     all_sender_timestamps = []
-    for edge in G.out_edges_iter(nbunch = [from_ind]):
-        all_sender_timestamps += edge["timestamps"]
+    for edge in G.out_edges(nbunch = [from_ind]):
+        all_sender_timestamps += G[edge[0]][edge[1]]["timestamps"]
     ts_sorted = SortedList(all_sender_timestamps)
     last_minute = ts_sorted.irange()
     last_hour = ts_sorted.irange()
@@ -147,7 +149,15 @@ def featurize_email(email_json, word_indices, cur, G):
             encoded_words[word_indices[word[0]]] = word[1]
 
     # Get features from email network graph structure/user state
-    graph_features = graph_features(from_email, to_email, email_ts, G, cur)
+    from_email, to_emails = ee.parse_from_to(email_json["body"])
+    email_ts = 0 # Unused for now
+    if len(to_emails) > 1:
+        print("More than one to address ({}), using first".format(len(to_emails)))
+    if from_email is None or len(to_emails) == 0:
+        print("Couldn't parse either sender or recipient email")
+        return None
+    else:
+        graph_features = get_graph_features(from_email, to_emails[0], email_ts, G, cur)
 
     return np.array(att_extensions + [n_jpl, n_outside, subj_chars, subj_words, n_links] + graph_features + encoded_words)
 
@@ -204,12 +214,13 @@ if __name__ == "__main__":
         print("Loaded word dictionary of {} words".format(len(word_list)))
 
     # Load email network graph
-    G = nx.read_pickle(args.graph)
+    G = nx.read_gpickle(args.graph)
 
     # Parse all the emails to create training/test matrices and labels
     feature_matrix = []
     labels = []
     n = 0
+    n_bad = 0
     for fname in filenames:
         str_label = fname.split("/")[-2]
         if str_label == "Unknown":
@@ -222,6 +233,10 @@ if __name__ == "__main__":
             email_json = json.load(f)
         if not args.features:
             features = featurize_email(email_json, word_indices, cur, G)
+            if features is None:
+                print(fname)
+                n_bad += 1
+                continue
             if feature_matrix == []:
                 feature_matrix = features
             else:
@@ -232,6 +247,7 @@ if __name__ == "__main__":
         if n % 1000 == 0:
             print("{} : Processed {} files".format(datetime.now(), n))
 
+    print("Good: {}, Bad: {}".format(n, n_bad))
     if args.features:
         feature_matrix = np.load(args.features)
         labels = np.load(args.labels)
