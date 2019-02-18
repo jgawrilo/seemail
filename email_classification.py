@@ -150,6 +150,8 @@ def featurize_email(email_json, word_indices, cur, G):
 
     # Get features from email network graph structure/user state
     from_email, to_emails = ee.parse_from_to(email_json["body"])
+    if len(to_emails) == 0:
+        to_emails = [email_json["header"]["from"],]
     email_ts = 0 # Unused for now
     if len(to_emails) > 1:
         print("More than one to address ({}), using first".format(len(to_emails)))

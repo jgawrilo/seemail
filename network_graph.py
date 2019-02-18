@@ -59,7 +59,7 @@ def process_email(G, cur, filename = None, email_json = None, timestamp = None,
         from_ind = email_address_index(cur, from_address)
         # If we couldn't parse out recipients, we at least know who at JPL
         # forwarded the email
-        if to_addresses is None:
+        if to_addresses is None or len(to_addresses) == 0:
             to_addresses = [email_json["header"]["from"]]
         # Update the graph with the edges
         for to_address in to_addresses:
