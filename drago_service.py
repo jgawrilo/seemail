@@ -1,0 +1,246 @@
+# Copyright 2015 gRPC authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""The Python implementation of the gRPC route guide server."""
+
+from concurrent.futures import ThreadPoolExecutor
+from concurrent import futures
+import time
+import math
+
+import grpc
+
+import collector_pb2
+import collector_pb2_grpc
+
+import healthcheck_pb2_grpc
+import healthcheck_pb2
+
+import random
+import time
+
+import manager_pb2
+import manager_pb2_grpc
+import utils
+from collector import VKScraper
+import sys
+from datetime import datetime, timedelta
+
+from multiprocessing.pool import ThreadPool
+from threading import Timer
+
+import threading
+
+import redis
+
+import json
+import requests
+
+from rq import Queue
+
+from requests.exceptions import ReadTimeout
+import logging
+import vk
+import utils
+
+_ONE_YEAR_IN_SECONDS = 60 * 60 * 24 * 365
+
+
+class Seemail_Collector(collector_pb2_grpc.CollectorServicer,healthcheck_pb2_grpc.HealthServicer):
+
+
+  def __init__(self,conf,rerun):
+    logging.info("Initializing Seemail Collection Server...")
+
+    self.red = redis.StrictRedis(host=conf["redis_url"], port=conf["redis_port"], db=9)
+    self.tokenred = redis.StrictRedis(host=conf["redis_url"], port=conf["redis_port"], db=10)
+    jobred = redis.StrictRedis(host=conf["redis_url"], port=conf["redis_port"], db=11)
+    self.q = Queue(connection=jobred)
+    
+    self.conf = conf
+
+
+  def _validate_name(self,id_obj):
+    logging.info("_validate_name -> ")
+    request = id_obj["request"]
+
+    #TODO: ensure asked for email address is actually in system
+    #TODO: return collector_pb2.TaskResponse(rule=request,error=collector_pb2.TaskResponse.INVALID_VALUE) if bad
+
+    response = = collector_pb2.TaskResponse(rule=request,
+          error=collector_pb2.TaskResponse.NONE)
+
+    logging.info(request.id + " -- " + request.entity.name + " is valid:")
+
+    return id_obj
+
+
+  def Check(self, request, context):
+    logging.info("\n\nCheck -> ")
+    return healthcheck_pb2.HealthCheckResponse(status=healthcheck_pb2.HealthCheckResponse.SERVING)
+
+  def ValidateRule(self, request, context):
+    logging.info("\n\nValidateRule -> ")
+    logging.info(request)
+
+    responses = [collector_pb2.TaskResponse(rule=request,
+        error=collector_pb2.TaskResponse.INVALID_VALUE)]
+
+    #TODO: Validate multiple rules 
+
+    logging.info(responses[0])
+    return responses[0]
+
+  def _start_rule(self,request):
+    logging.info("_start_rule ->")
+    logging.info(request)
+
+    if self.red.get(request.id):
+      logging.error("Request ID Already Made")
+      return collector_pb2.TaskResponse(rule=request,
+          error=collector_pb2.TaskResponse.NONE)
+
+    # ENTITY REQUEST - name
+    if request.entity.name:
+      logging.info("Firing Entity Info: " + request.id + " " + request.entity.name)
+      # self.q.enqueue(utils.process_entity,args=(
+      #   self.access_tokens, 
+      #   request.id, 
+      #   request.entity.name, 
+      #   self.conf["kafka"],
+      #   self.conf["kafka_topic"],
+      #   None,
+      #   self.conf["use_tor"],
+      #   start
+      #   ),
+      #   timeout=_ONE_YEAR_IN_SECONDS,
+      #   at_front = True
+      # )
+      return collector_pb2.TaskResponse(rule=request,
+          error=collector_pb2.TaskResponse.NONE)
+ 
+      
+    logging.error("Collection type caused a fall through.")
+    return collector_pb2.TaskResponse(rule=request,
+      error=collector_pb2.TaskResponse.RULE_COLLECTION_FAILED)
+
+  def StartRule(self, request, context):
+    logging.info("\n\nStartRule -> ")
+    return self._start_rule(request)
+
+  def _stop_rule(self,request):
+    logging.info("_stop_rule ->")
+    logging.info(request)
+    self.red.delete(request.id)
+    return collector_pb2.TaskResponse(rule=request,
+        error=collector_pb2.TaskResponse.NONE)
+
+  def StopRule(self, request, context):
+    logging.info("\n\nStopRule -> ")
+    return self._stop_rule(request)
+
+
+  def ValidateRules(self, request, context):
+    logging.info("\n\nValidateRules -> ")
+    logging.info(request)
+
+    responses = [None] * len(request.rules)
+
+    logging.info(responses)
+    return collector_pb2.TaskResponses(responses=responses)
+
+  def StartRules(self, request, context):
+    logging.info("\n\nStartRules -> ")
+    responses = [self._start_rule(x) for x in request.rules]
+    logging.info(responses)
+    return collector_pb2.TaskResponses(responses=responses)
+
+  def StopRules(self, request, context):
+    logging.info("\n\nStopRules -> ")
+    responses = [self._stop_rule(x) for x in request.rules]
+    return collector_pb2.TaskResponses(responses=responses)
+
+def register_collector(conf):
+  channel = grpc.insecure_channel(conf["manager"])
+  stub = manager_pb2_grpc.ManagerStub(channel)
+  d = manager_pb2.RegistrationInfo(uri=conf["collector_url"],
+      network=manager_pb2.VK,
+      collection_types=[manager_pb2.ENTITY,manager_pb2.KEYWORD],
+      collection_modes=[manager_pb2.POLLING]
+    )
+  resp = stub.Register(d)
+  logging.info("Registered Collector.")
+  time.sleep(60)
+
+  resp = stub.Initialize(d)
+  logging.info("Initialized Collector.")
+  
+def unregister_collector(conf):
+  channel = grpc.insecure_channel(conf["manager"])
+  stub = manager_pb2_grpc.ManagerStub(channel)
+  d = manager_pb2.RegistrationInfo(uri=conf["collector_url"],
+      network=manager_pb2.VK,
+      collection_types=[manager_pb2.ENTITY,manager_pb2.KEYWORD],
+      collection_modes=[manager_pb2.POLLING]
+    )
+  resp = stub.Unregister(d)
+  logging.info("Unregistered Collector.")
+
+def start_collector(conf,rerun):
+  logging.basicConfig(filename=conf["log_file"],level=logging.INFO,format='%(asctime)s %(message)s')
+  logging.info("Starting Collector.")
+
+  server = grpc.server(futures.ThreadPoolExecutor(max_workers=3))
+
+  my_collector = Seemail_Collector(conf,rerun)
+  collector_pb2_grpc.add_CollectorServicer_to_server(my_collector, server)
+  healthcheck_pb2_grpc.add_HealthServicer_to_server(my_collector,server)
+
+  server.add_insecure_port('[::]:50051')
+  server.start()
+
+  logging.info("Collector Started")
+
+  # Just because 
+  time.sleep(2)
+
+  try:
+    register_collector(conf)
+  except grpc._channel._Rendezvous:
+    logging.error("Something wrong with endpoint?")
+    sys.exit(1)
+  try:
+    while True:
+      time.sleep(_ONE_YEAR_IN_SECONDS)
+  except KeyboardInterrupt:
+    server.stop(0)
+
+if __name__ == '__main__':
+  if len(sys.argv) < 3:
+    print "Please specify config file and 'R' (register) or 'U' (unregister) on the command line"
+    sys.exit(1)
+
+
+
+  conf = json.load(open(sys.argv[1]))
+  if sys.argv[2] == "R":
+    start_collector(conf, sys.argv[3])
+  elif sys.argv[2] == "U":
+    unregister_collector(conf)
+
+
+
+
+
+
