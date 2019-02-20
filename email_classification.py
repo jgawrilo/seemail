@@ -50,18 +50,20 @@ def get_graph_features(from_address, to_address, email_ts, G, cur):
     #    from_to_path_len = None
 
     # More features from user graph?
+
     # Timing of recent emails from sender
     all_sender_timestamps = []
     for edge in G.out_edges(nbunch = [from_ind]):
         all_sender_timestamps += G[edge[0]][edge[1]]["timestamps"]
     ts_sorted = SortedList(all_sender_timestamps)
-    last_minute = ts_sorted.irange()
-    last_hour = ts_sorted.irange()
-    last_day = ts_sorted.irange()
+    now_ts = (datetime.now() - datetime(1979, 1, 1)).total_seconds()
+    last_minute = ts_sorted.irange(now_ts - 60, now_ts, inclusive = (True, True))
+    last_hour = ts_sorted.irange(now_ts  - 3600, now_ts, inclusive = (True, True))
+    last_day = ts_sorted.irange(now_ts - 86400, now_ts, inclusive = (True, True))
 
     # Burst detection
 
-    return [sender_ratio, from_to_path]
+    return [sender_ratio, from_to_path, len(last_minute), len(last_hour), len(last_day)]
 
 def featurize_email(email_json, word_indices, cur, G):
     n_subsections = len(email_json["body"])
@@ -79,7 +81,7 @@ def featurize_email(email_json, word_indices, cur, G):
     if email_addresses == []:
         print("No email addresses found")
         i = 0
-    
+
     # Divide email addresses into JPL and non-JPL
     for address in email_addresses:
         if re.search("nasa.gov", address) is not None:
@@ -282,6 +284,6 @@ if __name__ == "__main__":
         res = model.predict(X_test)
         print(confusion_matrix(y_test, res))
         print(classification_report(y_test, res))
-    
-    # Save out the last kfold 
+
+    # Save out the last kfold
     joblib.dump(model, "trained_model.joblib")
