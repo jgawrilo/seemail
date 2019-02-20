@@ -61,9 +61,15 @@ def get_graph_features(from_address, to_address, email_ts, G, cur):
     last_hour = ts_sorted.irange(now_ts  - 3600, now_ts, inclusive = (True, True))
     last_day = ts_sorted.irange(now_ts - 86400, now_ts, inclusive = (True, True))
 
-    # Burst detection
+    ts_diffs = []
+    # Detect if sender has been sending emails at suspiciously regular intervals
+    for i in range(0, len(ts_sorted)-1):
+        ts_diffs.append(ts_sorted[i+1] - ts_sorted[i])
+    ts_diffs = np.array(ts_diffs)
+    ts_diff_stdev = np.std(ts_diffs)
 
-    return [sender_ratio, from_to_path, len(last_minute), len(last_hour), len(last_day)]
+
+    return [sender_ratio, from_to_path, len(last_minute), len(last_hour), len(last_day), ts_diffs_stdev]
 
 def featurize_email(email_json, word_indices, cur, G):
     n_subsections = len(email_json["body"])
