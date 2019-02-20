@@ -35,7 +35,6 @@ def get_graph_features(from_address, to_address, email_ts, G, cur):
     from_ind = ng.email_address_index(cur, from_address)
     to_ind = ng.email_address_index(cur, to_address)
 
-    print(from_ind, to_ind)
     # See if the sender email address is a pure sender or actually has received emails as well
     sender_ratio = G.in_degree(from_ind) / (G.out_degree(from_ind) + 0.1)
 
@@ -57,17 +56,22 @@ def get_graph_features(from_address, to_address, email_ts, G, cur):
         all_sender_timestamps += G[edge[0]][edge[1]]["timestamps"]
     ts_sorted = SortedList(all_sender_timestamps)
     now_ts = (datetime.now() - datetime(1979, 1, 1)).total_seconds()
-    last_minute = ts_sorted.irange(now_ts - 60, now_ts, inclusive = (True, True))
-    last_hour = ts_sorted.irange(now_ts  - 3600, now_ts, inclusive = (True, True))
-    last_day = ts_sorted.irange(now_ts - 86400, now_ts, inclusive = (True, True))
+    last_minute = list(ts_sorted.irange(now_ts - 60, now_ts, 
+                    inclusive = (True, True)))
+    last_hour = list(ts_sorted.irange(now_ts  - 3600, now_ts, 
+                    inclusive = (True, True)))
+    last_day = list(ts_sorted.irange(now_ts - 86400, now_ts, 
+                    inclusive = (True, True)))
 
     ts_diffs = []
     # Detect if sender has been sending emails at suspiciously regular intervals
-    for i in range(0, len(ts_sorted)-1):
-        ts_diffs.append(ts_sorted[i+1] - ts_sorted[i])
-    ts_diffs = np.array(ts_diffs)
-    ts_diff_stdev = np.std(ts_diffs)
-
+    if len(ts_sorted) > 1:
+        for i in range(0, len(ts_sorted)-1):
+            ts_diffs.append(ts_sorted[i+1] - ts_sorted[i])
+        ts_diffs = np.array(ts_diffs)
+        ts_diffs_stdev = np.std(ts_diffs)
+    else:
+        ts_diffs_stdev = 0
 
     return [sender_ratio, from_to_path, len(last_minute), len(last_hour), len(last_day), ts_diffs_stdev]
 
@@ -208,8 +212,6 @@ if __name__ == "__main__":
     res = cur.execute("select * from abuse").fetchall()
     for row in res:
         filenames.append(row[2])
-
-    print(filenames[0])
 
     # Load list of words for word frequency features
     if args.words:
