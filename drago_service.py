@@ -80,26 +80,40 @@ class Seemail_Collector(collector_pb2_grpc.CollectorServicer,healthcheck_pb2_grp
     self.conf = conf
 
 
-  def _validate_name(self,id_obj):
+  def _validate_name(self, request):
     logging.info("_validate_name -> ")
-    request = id_obj["request"]
 
     #TODO: ensure asked for email address is actually in system
     #TODO: return collector_pb2.TaskResponse(rule=request,error=collector_pb2.TaskResponse.INVALID_VALUE) if bad
 
-    all_users = default_controller.get_all_users()
-    email_addresses = [user["email_address"] for user in all_users]
-    if request.entity.email_address not in email_addresses:
+    email_address = self._email_from_request(request)
+
+    if email_address:
+      all_users = default_controller.get_all_users()
+      email_addresses = [user["email_address"] for user in all_users]
+      if email_address not in email_addresses:
         logging.info(request.id + " -- " + request.entity.name + " is not valid")
         return collector_pb2.TaskResponse(rule=request,error=collector_pb2.TaskResponse.INVALID_VALUE)
 
-    response = collector_pb2.TaskResponse(rule=request,
+      response = collector_pb2.TaskResponse(rule=request,
           error=collector_pb2.TaskResponse.NONE)
 
-    logging.info(request.id + " -- " + request.entity.name + " is valid:")
+      logging.info(request.id + " -- " + request.entity.name + " is valid:")
 
-    return id_obj
+      return collector_pb2.TaskResponse(rule=request,
+                error=collector_pb2.TaskResponse.NONE)
 
+    return collector_pb2.TaskResponse(rule=request,error=collector_pb2.TaskResponse.INVALID_VALUE)
+
+  def _email_from_request(self, request):
+    if type(request.entity.id) == str:
+      if re.search("@", request.entity.id) is not None:
+        return request.entity.id
+    else:
+      if re.search("@", request.entity.name) is not None:
+        return request.entity.name
+    logging.error("Request does not appear to contain an email address in id or name")
+    return None
 
   def Check(self, request, context):
     logging.info("\n\nCheck -> ")
@@ -109,13 +123,9 @@ class Seemail_Collector(collector_pb2_grpc.CollectorServicer,healthcheck_pb2_grp
     logging.info("\n\nValidateRule -> ")
     logging.info(request)
 
-    responses = [collector_pb2.TaskResponse(rule=request,
-        error=collector_pb2.TaskResponse.INVALID_VALUE)]
+    return self.validate_name(request)
 
     #TODO: Validate multiple rules
-
-    logging.info(responses[0])
-    return responses[0]
 
   def _start_rule(self,request):
     logging.info("_start_rule ->")
@@ -128,14 +138,15 @@ class Seemail_Collector(collector_pb2_grpc.CollectorServicer,healthcheck_pb2_grp
 
     # RGO - Change this to email address?
     # ENTITY REQUEST - name
-    if request.entity.email_address:
+    email_address = self._email_from_request(request)
+    if email_address:
       logging.info("Firing Entity Info: " + request.id + " " + request.entity.name)
 
       # Check to see if user already being watched
       users_r = redis.StrictRedis(host='localhost', port=6379, db=1)
       user_found = False
       for key in users_r.scan_iter():
-          if key == request.entity.email_address.encode('utf-8'):
+          if key == email_address.encode('utf-8'):
               user_found = True
               break
 
@@ -143,9 +154,9 @@ class Seemail_Collector(collector_pb2_grpc.CollectorServicer,healthcheck_pb2_grp
       if not user_found:
           # This sends the email throught he history kafka queue
           logging.info("Sending user email history to history queue")
-          res = default_controller.request_mail_history_get([request.entity.email_address],
+          res = default_controller.request_mail_history_get([email_address],
                   request_key, 350000000)
-          res = default_controller.monitor_users_get([request.entity.email_address,])
+          res = default_controller.monitor_users_get([email_address])
 
       # Otherwise return that we already were watching the user
       else:
@@ -170,7 +181,7 @@ class Seemail_Collector(collector_pb2_grpc.CollectorServicer,healthcheck_pb2_grp
 
     logging.error("Collection type caused a fall through.")
     return collector_pb2.TaskResponse(rule=request,
-      error=collector_pb2.TaskResponse.RULE_COLLECTION_FAILED)
+      error=collector_pb2.TaskResponse.INVALID_VALUE)
 
   def StartRule(self, request, context):
     logging.info("\n\nStartRule -> ")
@@ -180,10 +191,17 @@ class Seemail_Collector(collector_pb2_grpc.CollectorServicer,healthcheck_pb2_grp
     logging.info("_stop_rule ->")
     logging.info(request)
     self.red.delete(request.id)
+
+    email_address = self._email_from_request(request)
     # Remove user from list of email addresses to monitor
-    res = default_controller.unmonitor_users_get(request.entity.email_address)
-    return collector_pb2.TaskResponse(rule=request,
+    if email_address:
+      res = default_controller.unmonitor_users_get(email_address)
+      return collector_pb2.TaskResponse(rule=request,
         error=collector_pb2.TaskResponse.NONE)
+
+    # Return error if there was no email address in request
+    return collector_pb2.TaskResponse(rule=request,
+        error=collector_pb2.TaskResponse.INVALID_VALUE)
 
   def StopRule(self, request, context):
     logging.info("\n\nStopRule -> ")
