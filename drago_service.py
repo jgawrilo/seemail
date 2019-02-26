@@ -32,8 +32,6 @@ import time
 
 import manager_pb2
 import manager_pb2_grpc
-import utils
-from collector import VKScraper
 import sys
 from datetime import datetime, timedelta
 
@@ -51,8 +49,19 @@ from rq import Queue
 
 from requests.exceptions import ReadTimeout
 import logging
-import vk
 import utils
+
+sys.path.append('/root/mailinabox/management/')
+import utils
+import mailconfig
+
+sys.path.append('/home/rosteen/seemail/server_stub/controllers/')
+import default_controller
+
+# Important directories
+mail_home = '/home/user-data/mail'
+seemail_path = '/home/rosteen/seemail'
+
 
 _ONE_YEAR_IN_SECONDS = 60 * 60 * 24 * 365
 
@@ -67,7 +76,7 @@ class Seemail_Collector(collector_pb2_grpc.CollectorServicer,healthcheck_pb2_grp
     self.tokenred = redis.StrictRedis(host=conf["redis_url"], port=conf["redis_port"], db=10)
     jobred = redis.StrictRedis(host=conf["redis_url"], port=conf["redis_port"], db=11)
     self.q = Queue(connection=jobred)
-    
+
     self.conf = conf
 
 
@@ -78,7 +87,13 @@ class Seemail_Collector(collector_pb2_grpc.CollectorServicer,healthcheck_pb2_grp
     #TODO: ensure asked for email address is actually in system
     #TODO: return collector_pb2.TaskResponse(rule=request,error=collector_pb2.TaskResponse.INVALID_VALUE) if bad
 
-    response = = collector_pb2.TaskResponse(rule=request,
+    all_users = default_controller.get_all_users()
+    email_addresses = [user["email_address"] for user in all_users]
+    if request.entity.email_address not in email_addresses:
+        logging.info(request.id + " -- " + request.entity.name + " is not valid")
+        return collector_pb2.TaskResponse(rule=request,error=collector_pb2.TaskResponse.INVALID_VALUE)
+
+    response = collector_pb2.TaskResponse(rule=request,
           error=collector_pb2.TaskResponse.NONE)
 
     logging.info(request.id + " -- " + request.entity.name + " is valid:")
@@ -97,7 +112,7 @@ class Seemail_Collector(collector_pb2_grpc.CollectorServicer,healthcheck_pb2_grp
     responses = [collector_pb2.TaskResponse(rule=request,
         error=collector_pb2.TaskResponse.INVALID_VALUE)]
 
-    #TODO: Validate multiple rules 
+    #TODO: Validate multiple rules
 
     logging.info(responses[0])
     return responses[0]
@@ -111,13 +126,35 @@ class Seemail_Collector(collector_pb2_grpc.CollectorServicer,healthcheck_pb2_grp
       return collector_pb2.TaskResponse(rule=request,
           error=collector_pb2.TaskResponse.NONE)
 
+    # RGO - Change this to email address?
     # ENTITY REQUEST - name
-    if request.entity.name:
+    if request.entity.email_address:
       logging.info("Firing Entity Info: " + request.id + " " + request.entity.name)
+
+      # Check to see if user already being watched
+      users_r = redis.StrictRedis(host='localhost', port=6379, db=1)
+      user_found = False
+      for key in users_r.scan_iter():
+          if key == request.entity.email_address.encode('utf-8'):
+              user_found = True
+              break
+
+      # Get the user's email history if they were not already being watched
+      if not user_found:
+          # This sends the email throught he history kafka queue
+          logging.info("Sending user email history to history queue")
+          res = default_controller.request_mail_history_get([request.entity.email_address],
+                  request_key, 350000000)
+          res = default_controller.monitor_users_get([request.entity.email_address,])
+
+      # Otherwise return that we already were watching the user
+      else:
+          logging.info("User email was already being monitored")
+
       # self.q.enqueue(utils.process_entity,args=(
-      #   self.access_tokens, 
-      #   request.id, 
-      #   request.entity.name, 
+      #   self.access_tokens,
+      #   request.id,
+      #   request.entity.name,
       #   self.conf["kafka"],
       #   self.conf["kafka_topic"],
       #   None,
@@ -129,8 +166,8 @@ class Seemail_Collector(collector_pb2_grpc.CollectorServicer,healthcheck_pb2_grp
       # )
       return collector_pb2.TaskResponse(rule=request,
           error=collector_pb2.TaskResponse.NONE)
- 
-      
+
+
     logging.error("Collection type caused a fall through.")
     return collector_pb2.TaskResponse(rule=request,
       error=collector_pb2.TaskResponse.RULE_COLLECTION_FAILED)
@@ -143,6 +180,8 @@ class Seemail_Collector(collector_pb2_grpc.CollectorServicer,healthcheck_pb2_grp
     logging.info("_stop_rule ->")
     logging.info(request)
     self.red.delete(request.id)
+    # Remove user from list of email addresses to monitor
+    res = default_controller.unmonitor_users_get(request.entity.email_address)
     return collector_pb2.TaskResponse(rule=request,
         error=collector_pb2.TaskResponse.NONE)
 
@@ -185,7 +224,7 @@ def register_collector(conf):
 
   resp = stub.Initialize(d)
   logging.info("Initialized Collector.")
-  
+
 def unregister_collector(conf):
   channel = grpc.insecure_channel(conf["manager"])
   stub = manager_pb2_grpc.ManagerStub(channel)
@@ -212,7 +251,7 @@ def start_collector(conf,rerun):
 
   logging.info("Collector Started")
 
-  # Just because 
+  # Just because
   time.sleep(2)
 
   try:
