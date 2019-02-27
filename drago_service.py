@@ -49,14 +49,10 @@ from rq import Queue
 
 from requests.exceptions import ReadTimeout
 import logging
-import utils
-
-sys.path.append('/root/mailinabox/management/')
-import utils
-import mailconfig
 
 sys.path.append('/home/rosteen/seemail/server_stub/controllers/')
 import default_controller
+#import server_code.default_controller as default_controller
 
 # Important directories
 mail_home = '/home/user-data/mail'
@@ -285,7 +281,7 @@ def start_collector(conf,rerun):
 
 if __name__ == '__main__':
   if len(sys.argv) < 3:
-    print "Please specify config file and 'R' (register) or 'U' (unregister) on the command line"
+    print("Please specify config file and 'R' (register) or 'U' (unregister) on the command line")
     sys.exit(1)
 
 
