@@ -50,7 +50,7 @@ from rq import Queue
 from requests.exceptions import ReadTimeout
 import logging
 
-sys.path.append('/home/rosteen/seemail/server_stub/controllers/')
+sys.path.append('/home/rosteen/seemail/server_stub/swagger_server/controllers/')
 import default_controller
 #import server_code.default_controller as default_controller
 
@@ -250,7 +250,7 @@ def unregister_collector(conf):
   resp = stub.Unregister(d)
   logging.info("Unregistered Collector.")
 
-def start_collector(conf,rerun):
+def start_collector(conf, rerun):
   logging.basicConfig(filename=conf["log_file"],level=logging.INFO,format='%(asctime)s %(message)s')
   logging.info("Starting Collector.")
 
