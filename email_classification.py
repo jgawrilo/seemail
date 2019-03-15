@@ -81,6 +81,7 @@ def featurize_email(email_json, word_indices, cur, G):
     jpl_addresses = []
     outside_addresses = []
     i = 0
+    header = email_json["header"]
     while i < n_subsections:
         try:
             email_addresses = email_json["body"][i]["email"]
@@ -89,7 +90,10 @@ def featurize_email(email_json, word_indices, cur, G):
             continue
         break
     if email_addresses == []:
-        print("No email addresses found")
+        email_addresses = header["to"] + [header["from"]]
+        for other_field in ("cc", "bcc"):
+            if other_field in header:
+                email_addresses += header[other_field]
         i = 0
 
     # Divide email addresses into JPL and non-JPL
@@ -108,7 +112,9 @@ def featurize_email(email_json, word_indices, cur, G):
         print(email_json["body"])
         print(i)
         raise
-    subject = content.split("Subject: ")[-1].split("\n")[0]
+
+    #subject = content.split("Subject: ")[-1].split("\n")[0]
+    subject = header["subject"]
     subj_chars = len(subject)
     subj_words = len(subject.split(" "))
 
@@ -161,10 +167,17 @@ def featurize_email(email_json, word_indices, cur, G):
             encoded_words[word_indices[word[0]]] = word[1]
 
     # Get features from email network graph structure/user state
-    from_email, to_emails = ee.parse_from_to(email_json["body"])
-    if len(to_emails) == 0:
-        to_emails = [email_json["header"]["from"],]
+    #from_email, to_emails = ee.parse_from_to(email_json["body"])
+    from_email = header["from"]
+    to_emails = header["to"]
+    for other_field in ("cc", "bcc"):
+        if other_field in header:
+            to_emails += header[other_field]
+    #if len(to_emails) == 0:
+    #    to_emails = [email_json["header"]["from"],]
+    
     email_ts = 0 # Unused for now
+    
     if len(to_emails) > 1:
         print("More than one to address ({}), using first".format(len(to_emails)))
     if from_email is None or len(to_emails) == 0:
