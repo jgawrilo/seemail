@@ -45,7 +45,7 @@ def get_graph_features(from_address, to_address, email_ts, graph_file, cur):
     G = ng.process_edge(G, from_ind, to_ind, email_ts)
 
     # Write out the graph with the new edge information added
-    ng.write_gpickle(G, graph_file)
+    nx.write_gpickle(G, graph_file)
 
     # See if the sender email address is a pure sender or actually has received emails as well
     sender_ratio = G.in_degree(from_ind) / (G.out_degree(from_ind) + 0.1)
@@ -85,7 +85,7 @@ def get_graph_features(from_address, to_address, email_ts, graph_file, cur):
     else:
         ts_diffs_stdev = 0
 
-    return G, [sender_ratio, from_to_path, len(last_minute), len(last_hour), len(last_day), ts_diffs_stdev]
+    return [sender_ratio, from_to_path, len(last_minute), len(last_hour), len(last_day), ts_diffs_stdev]
 
 def featurize_email(email_json, word_indices, cur, graph_file):
 
