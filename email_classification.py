@@ -32,10 +32,20 @@ import network_graph as ng
 
 stops = set(stopwords.words("english"))
 
-def get_graph_features(from_address, to_address, email_ts, G, cur):
+def get_graph_features(from_address, to_address, email_ts, graph_file, cur):
+
+    # Load email network graph
+    G = nx.read_gpickle(graph_file)
+    
     features = []
     from_ind = ng.email_address_index(cur, from_address)
     to_ind = ng.email_address_index(cur, to_address)
+
+    # Add edge to graph if needed, if it exists add the new timestamp between the two addresses
+    G = ng.process_edge(G, from_ind, to_ind, email_ts)
+
+    # Write out the graph with the new edge information added
+    ng.write_gpickle(G, graph_file)
 
     # See if the sender email address is a pure sender or actually has received emails as well
     sender_ratio = G.in_degree(from_ind) / (G.out_degree(from_ind) + 0.1)
@@ -75,9 +85,11 @@ def get_graph_features(from_address, to_address, email_ts, G, cur):
     else:
         ts_diffs_stdev = 0
 
-    return [sender_ratio, from_to_path, len(last_minute), len(last_hour), len(last_day), ts_diffs_stdev]
+    return G, [sender_ratio, from_to_path, len(last_minute), len(last_hour), len(last_day), ts_diffs_stdev]
 
-def featurize_email(email_json, word_indices, cur, G):
+def featurize_email(email_json, word_indices, cur, graph_file):
+
+    
     n_subsections = len(email_json["body"])
     email_addresses = []
     jpl_addresses = []
@@ -188,7 +200,7 @@ def featurize_email(email_json, word_indices, cur, G):
         print("Couldn't parse either sender or recipient email")
         return None
     else:
-        graph_features = get_graph_features(from_email, to_emails[0], email_ts, G, cur)
+        graph_features = get_graph_features(from_email, to_emails[0], email_ts, graph_file, cur)
 
     return np.array(att_extensions + [n_jpl, n_outside, subj_chars, subj_words, n_links] + graph_features + encoded_words)
 
@@ -242,9 +254,6 @@ if __name__ == "__main__":
             word_indices[word_list[i]] = i
         print("Loaded word dictionary of {} words".format(len(word_list)))
 
-    # Load email network graph
-    G = nx.read_gpickle(args.graph)
-
     # Parse all the emails to create training/test matrices and labels
     feature_matrix = []
     labels = []
@@ -261,7 +270,7 @@ if __name__ == "__main__":
         with open(fname, "r") as f:
             email_json = json.load(f)
         if not args.features:
-            features = featurize_email(email_json, word_indices, cur, G)
+            features = featurize_email(email_json, word_indices, cur, args.graph)
             if features is None:
                 print(fname)
                 n_bad += 1
