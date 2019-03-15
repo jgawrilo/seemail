@@ -15,6 +15,8 @@ import sqlite3 as sql
 import numpy as np
 from sortedcontainers import SortedList
 from datetime import datetime
+from dateutil.parser import parse as dparse
+import pytz
 from collections import Counter
 from sklearn.naive_bayes import MultinomialNB, GaussianNB, BernoulliNB
 from sklearn.svm import SVC, NuSVC, LinearSVC
@@ -176,7 +178,9 @@ def featurize_email(email_json, word_indices, cur, G):
     #if len(to_emails) == 0:
     #    to_emails = [email_json["header"]["from"],]
     
-    email_ts = 0 # Unused for now
+    
+    email_ts = int((dparse(email_json["header"]["date"]) - 
+                pytz.utc.localize(datetime(1970,1,1))).total_seconds())
     
     if len(to_emails) > 1:
         print("More than one to address ({}), using first".format(len(to_emails)))
