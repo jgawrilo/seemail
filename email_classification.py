@@ -32,23 +32,11 @@ import network_graph as ng
 
 stops = set(stopwords.words("english"))
 
-def get_graph_features(from_address, to_address, email_ts, graph_file, cur):
+#------------------------------------------------------------------------------
 
-    # Load email network graph
-    G = nx.read_gpickle(graph_file)
+def get_graph_features(from_ind, to_ind, email_ts, G, cur):
 
     features = []
-    from_ind = ng.email_address_index(cur, from_address)
-    to_ind = ng.email_address_index(cur, to_address)
-
-    # Add edge to graph if needed, if it exists add the new timestamp between the two addresses
-    G = ng.process_edge(G, from_ind, to_ind, email_ts)
-
-    if G is None:
-        print("G is None...")
-
-    # Write out the graph with the new edge information added
-    nx.write_gpickle(G, graph_file)
 
     # See if the sender email address is a pure sender or actually has received emails as well
     sender_ratio = G.in_degree(from_ind) / (G.out_degree(from_ind) + 0.1)
@@ -60,7 +48,7 @@ def get_graph_features(from_address, to_address, email_ts, graph_file, cur):
     #if from_to_path:
     #    from_to_path_len = nx.shortest_path_length(G, from_ind, to_ind)
     #else:
-    #    # Should this be None?
+    #    # Should this be None or perhaps -1?
     #    from_to_path_len = None
 
     # More features from user graph?
@@ -90,7 +78,9 @@ def get_graph_features(from_address, to_address, email_ts, graph_file, cur):
 
     return [sender_ratio, from_to_path, len(last_minute), len(last_hour), len(last_day), ts_diffs_stdev]
 
-def featurize_email(email_json, word_indices, cur, graph_file):
+#------------------------------------------------------------------------------
+
+def featurize_email(email_json, word_indices, cur, G, graph_file):
 
 
     n_subsections = len(email_json["body"])
@@ -183,29 +173,38 @@ def featurize_email(email_json, word_indices, cur, graph_file):
         if word[0] in word_indices:
             encoded_words[word_indices[word[0]]] = word[1]
 
+    # Unix timestamp of email
+    email_ts = int((dparse(email_json["header"]["date"]) -
+                pytz.utc.localize(datetime(1970,1,1))).total_seconds())
+
     # Get features from email network graph structure/user state
     #from_email, to_emails = ee.parse_from_to(email_json["body"])
     from_email = header["from"]
+    from_ind = email_address_index(cur, from_email)
     to_emails = header["to"]
     for other_field in ("cc", "bcc"):
         if other_field in header:
             to_emails += header[other_field]
-    #if len(to_emails) == 0:
-    #    to_emails = [email_json["header"]["from"],]
+    to_inds = []
+    for to_email in to_emails:
+        to_ind = email_address_index(cur, to_email)
+        to_inds.append(to_ind)
+        G = ng.process_edge(G, from_ind, to_ind, email_ts)
 
-
-    email_ts = int((dparse(email_json["header"]["date"]) -
-                pytz.utc.localize(datetime(1970,1,1))).total_seconds())
+    # Write out updated graph with new edges
+    nx.write_gpickle(G, graph_file)
 
     if len(to_emails) > 1:
         print("More than one to address ({}), using first".format(len(to_emails)))
+    
     if from_email is None or len(to_emails) == 0:
         print("Couldn't parse either sender or recipient email")
         return None
     else:
-        graph_features = get_graph_features(from_email, to_emails[0], email_ts, graph_file, cur)
+        graph_features = get_graph_features(from_ind, to_inds[0], email_ts, graph_file, cur)
 
-    return np.array(att_extensions + [n_jpl, n_outside, subj_chars, subj_words, n_links] + graph_features + encoded_words)
+    # Return updated graph and numpy array of features
+    return G, np.array(att_extensions + [n_jpl, n_outside, subj_chars, subj_words, n_links] + graph_features + encoded_words)
 
 ###############################################################################
 
