@@ -20,6 +20,7 @@ def email_address_index(cur, email_address):
         stmt = "insert into email_addresses values ('{}')".format(email_address)
         try:
             cur.execute(stmt)
+            cur.commit()
         except:
             print(stmt)
             raise
@@ -28,7 +29,7 @@ def email_address_index(cur, email_address):
 
     return res[0][0]
 
-# Check if from->to is already an edge and either add it if not, 
+# Check if from->to is already an edge and either add it if not,
 # or add timestamp to existing edge
 def process_edge(G, from_ind, to_ind, ts):
     if not G.has_edge(from_ind, to_ind):
@@ -39,7 +40,7 @@ def process_edge(G, from_ind, to_ind, ts):
     return G
 
 # Add information to graph from either email file or json data
-def process_email(G, cur, filename = None, email_json = None, timestamp = None, 
+def process_email(G, cur, filename = None, email_json = None, timestamp = None,
                     fwd = False):
     if filename is not None and email_json is None:
         with open(filename, "r") as f:
@@ -74,7 +75,7 @@ def process_email(G, cur, filename = None, email_json = None, timestamp = None,
         for to_address in email_json["header"]["to"]:
             to_ind = email_address_index(cur, to_address)
             G = process_edge(G, from_ind, to_ind, timestamp)
-    
+
     return G
 
 # Create a new graph from a set of email files
@@ -88,10 +89,10 @@ def initialize_graph(fwd = False):
         filenames.append(row[2])
         timestamps.append(row[1])
     G = nx.DiGraph()
-    
+
     for i in range(0, len(filenames)):
         #print(filenames[i])
-        G = process_email(G, cur, filename = filenames[i], 
+        G = process_email(G, cur, filename = filenames[i],
                 timestamp = timestamps[i], fwd = fwd)
 
     return G
@@ -102,7 +103,7 @@ if __name__ == "__main__":
             help = "Flag to create a new graph rather than adding to one")
     parser.add_argument("-g", "--graph", type = str,
             help = "File with existing graph structure")
-    parser.add_argument("-f", "--forwards", action = "store_true", 
+    parser.add_argument("-f", "--forwards", action = "store_true",
             help = "Flag to deal with forwarded emails rather than originals")
     args = parser.parse_args()
 
@@ -112,4 +113,4 @@ if __name__ == "__main__":
         nx.write_gpickle(G, args.graph)
     else:
         G = nx.read_gpickle(args.graph)
-        
+

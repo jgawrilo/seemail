@@ -36,13 +36,16 @@ def get_graph_features(from_address, to_address, email_ts, graph_file, cur):
 
     # Load email network graph
     G = nx.read_gpickle(graph_file)
-    
+
     features = []
     from_ind = ng.email_address_index(cur, from_address)
     to_ind = ng.email_address_index(cur, to_address)
 
     # Add edge to graph if needed, if it exists add the new timestamp between the two addresses
     G = ng.process_edge(G, from_ind, to_ind, email_ts)
+
+    if G is None:
+        print("G is None...")
 
     # Write out the graph with the new edge information added
     nx.write_gpickle(G, graph_file)
@@ -68,11 +71,11 @@ def get_graph_features(from_address, to_address, email_ts, graph_file, cur):
         all_sender_timestamps += G[edge[0]][edge[1]]["timestamps"]
     ts_sorted = SortedList(all_sender_timestamps)
     now_ts = (datetime.now() - datetime(1979, 1, 1)).total_seconds()
-    last_minute = list(ts_sorted.irange(now_ts - 60, now_ts, 
+    last_minute = list(ts_sorted.irange(now_ts - 60, now_ts,
                     inclusive = (True, True)))
-    last_hour = list(ts_sorted.irange(now_ts  - 3600, now_ts, 
+    last_hour = list(ts_sorted.irange(now_ts  - 3600, now_ts,
                     inclusive = (True, True)))
-    last_day = list(ts_sorted.irange(now_ts - 86400, now_ts, 
+    last_day = list(ts_sorted.irange(now_ts - 86400, now_ts,
                     inclusive = (True, True)))
 
     ts_diffs = []
@@ -89,7 +92,7 @@ def get_graph_features(from_address, to_address, email_ts, graph_file, cur):
 
 def featurize_email(email_json, word_indices, cur, graph_file):
 
-    
+
     n_subsections = len(email_json["body"])
     email_addresses = []
     jpl_addresses = []
@@ -189,11 +192,11 @@ def featurize_email(email_json, word_indices, cur, graph_file):
             to_emails += header[other_field]
     #if len(to_emails) == 0:
     #    to_emails = [email_json["header"]["from"],]
-    
-    
-    email_ts = int((dparse(email_json["header"]["date"]) - 
+
+
+    email_ts = int((dparse(email_json["header"]["date"]) -
                 pytz.utc.localize(datetime(1970,1,1))).total_seconds())
-    
+
     if len(to_emails) > 1:
         print("More than one to address ({}), using first".format(len(to_emails)))
     if from_email is None or len(to_emails) == 0:
