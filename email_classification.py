@@ -225,7 +225,7 @@ def featurize_email(email_json, word_indices, db_file):
         graph_features = get_graph_features(from_ind, to_ind, email_ts, G)
 
     # Return updated graph and numpy array of features
-    return G, np.array(att_extensions + [n_jpl, n_outside, subj_chars, subj_words, n_links] + graph_features + encoded_words)
+    return np.array(att_extensions + [n_jpl, n_outside, subj_chars, subj_words, n_links] + graph_features + encoded_words)
 
 ###############################################################################
 
