@@ -32,7 +32,6 @@ import network_graph as ng
 
 stops = set(stopwords.words("english"))
 
-<<<<<<< HEAD
 # Add the email from->to edges to the email_edges table and build graph object
 def build_network_graph(from_address, to_addresses, email_ts, db_file):
 
@@ -56,13 +55,9 @@ def build_network_graph(from_address, to_addresses, email_ts, db_file):
         G = ng.process_edge(G, row[0], row[1], row[2])
     return G, from_ind, to_inds[0]
 
+#---------------------------------------------------------------------------------------------
 # Calculate graph related features from the network graph
 def get_graph_features(from_ind, to_ind, email_ts, G):
-=======
-#------------------------------------------------------------------------------
-
-def get_graph_features(from_ind, to_ind, email_ts, G, cur):
->>>>>>> 370ddff49dc57b359521ceec41b3398938327857
 
     features = []
 
@@ -106,14 +101,8 @@ def get_graph_features(from_ind, to_ind, email_ts, G, cur):
 
     return [sender_ratio, from_to_path, len(last_minute), len(last_hour), len(last_day), ts_diffs_stdev]
 
-<<<<<<< HEAD
+#------------------------------------------------------------------------------------
 def featurize_email(email_json, word_indices, db_file):
-=======
-#------------------------------------------------------------------------------
-
-def featurize_email(email_json, word_indices, cur, G, graph_file):
-
->>>>>>> 370ddff49dc57b359521ceec41b3398938327857
 
     n_subsections = len(email_json["body"])
     email_addresses = []
@@ -217,39 +206,19 @@ def featurize_email(email_json, word_indices, cur, G, graph_file):
     for other_field in ("cc", "bcc"):
         if other_field in header:
             to_emails += header[other_field]
-<<<<<<< HEAD
-=======
-    to_inds = []
-    for to_email in to_emails:
-        to_ind = email_address_index(cur, to_email)
-        to_inds.append(to_ind)
-        G = ng.process_edge(G, from_ind, to_ind, email_ts)
->>>>>>> 370ddff49dc57b359521ceec41b3398938327857
-
-    # Write out updated graph with new edges
-    nx.write_gpickle(G, graph_file)
 
     if len(to_emails) > 1:
         print("More than one to address ({}), using first".format(len(to_emails)))
-<<<<<<< HEAD
 
-    # If we couldn't get the recipient or sender, we can't do graph features
-=======
-    
->>>>>>> 370ddff49dc57b359521ceec41b3398938327857
     if from_email is None or len(to_emails) == 0:
         print("Couldn't parse either sender or recipient email")
         return None
     else:
-<<<<<<< HEAD
         # Build the network graph object and get the relevant email address indices
         G, from_ind, to_ind = build_network_graph(from_email, to_emails, email_ts, db_file)
 
         # Calculate features from graph structure
         graph_features = get_graph_features(from_ind, to_ind, email_ts, G)
-=======
-        graph_features = get_graph_features(from_ind, to_inds[0], email_ts, graph_file, cur)
->>>>>>> 370ddff49dc57b359521ceec41b3398938327857
 
     # Return updated graph and numpy array of features
     return G, np.array(att_extensions + [n_jpl, n_outside, subj_chars, subj_words, n_links] + graph_features + encoded_words)
