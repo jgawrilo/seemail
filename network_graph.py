@@ -12,7 +12,7 @@ import sys
 from email_exploration import parse_from_to
 
 # Get the rowid for the email address, adding it to the database if needed
-def email_address_index(cur, email_address):
+def email_address_index(cur, conn, email_address):
     email_address = email_address.replace("'", "")
     stmt = "select rowid from email_addresses where address = '{}'".format(email_address)
     res = cur.execute(stmt).fetchall()
@@ -20,7 +20,7 @@ def email_address_index(cur, email_address):
         stmt = "insert into email_addresses values ('{}')".format(email_address)
         try:
             cur.execute(stmt)
-            cur.commit()
+            conn.commit()
         except:
             print(stmt)
             raise
