@@ -42,7 +42,12 @@ def build_network_graph(from_address, to_addresses, email_ts, db_file):
     for to_address in to_addresses:
         to_ind = ng.email_address_index(cur, conn, to_address)
         to_inds.append(to_ind)
-        cur.execute("insert into email_edges values ({}, {}, {})".format(from_ind, to_ind, email_ts))
+        # Try/except in case we try to insert a duplicate row at some point
+        try:
+            cur.execute("insert into email_edges values ({}, {}, {})".format(from_ind, to_ind, email_ts))
+        except sql.IntegrityError:
+            pass
+
     conn.commit()
 
     cur.close()
@@ -201,7 +206,6 @@ def featurize_email(email_json, word_indices, db_file):
     # Get features from email network graph structure/user state
     #from_email, to_emails = ee.parse_from_to(email_json["body"])
     from_email = header["from"]
-    from_ind = email_address_index(cur, from_email)
     to_emails = header["to"]
     for other_field in ("cc", "bcc"):
         if other_field in header:
