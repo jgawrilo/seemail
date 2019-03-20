@@ -150,7 +150,7 @@ def create_bot_account_post(user):  # noqa: E501
     cur2 = conn2.cursor()
     user_id = cur1.execute('select id from users where email="{}"'.format(user.email_address)).fetchone()[0]
     try:
-        cur2.execute('insert into names values  ({}, "{}", "{}", "{}")'.format(user_id, 
+        cur2.execute('insert into names values  ({}, "{}", "{}", "{}")'.format(user_id,
             user.first_name, user.last_name, user.email_address))
     except sql.IntegrityError:
         pass # User already in the names DB, might hit this when reactivating an existing bot
@@ -163,7 +163,7 @@ def create_bot_account_post(user):  # noqa: E501
     if reactivating is False:
         logging.info("Added bot account {}".format(user.email_address))
     else:
-        logging.info("Reactivated bot account {}".format(user.email_address))    
+        logging.info("Reactivated bot account {}".format(user.email_address))
 
     return res
 
@@ -178,7 +178,7 @@ def get_all_users():  # noqa: E501
     """
     bots_r = redis.StrictRedis(host='localhost', port=6379, db=2)
     deactivated_bots_r = redis.StrictRedis(host='localhost', port=6379, db=3)
-    ## Not sure if this will work on all email implementations. 
+    ## Not sure if this will work on all email implementations.
     ## Needs location of mailboxes on server, and permission to access that location
     users = []
     domains = os.listdir('/home/user-data/mail/mailboxes')
@@ -209,7 +209,7 @@ def get_all_users():  # noqa: E501
     conn.close()
 
     logging.info("Returned list of users")
-    
+
     return decoded_users
 
 def monitor_users_get(email_addresses):  # noqa: E501
@@ -227,7 +227,7 @@ def monitor_users_get(email_addresses):  # noqa: E501
     for address in email_addresses:
         res = users_r.set(address, 1)
         results.append(res)
-    
+
     logging.info("Added list of email addresses to monitor: {}".format(email_addresses))
 
     return results
@@ -273,7 +273,7 @@ def request_mail_history_get(email_addresses, request_key, back_to_iso_date_stri
     back_to_unix = int((datetime.strptime(in_dt, '%Y%m%d')-datetime(1970,1,1)).total_seconds())
 
     producer = KafkaProducer(bootstrap_servers='localhost:9092',value_serializer=lambda v: json.dumps(v).encode('utf-8'))
-    
+
     try:
         filelist = []
         for folder in ('tmp', 'new', 'cur'):
@@ -319,7 +319,7 @@ def request_send_mail_post(email):  # noqa: E501
     	recipients += [x.email_address for x in field]
     msg['To'] = ', '.join([x.email_address for x in email.sent_to])
     msg['CC'] = ', '.join([x.email_address for x in email.sent_cc])
-    msg['From'] = "{} {} <{}>".format(email.sent_from.first_name, 
+    msg['From'] = "{} {} <{}>".format(email.sent_from.first_name,
         email.sent_from.last_name, email.sent_from.email_address)
     if email.reply_to_id != '':
         msg['In-Reply-To'] = email.reply_to_id
@@ -328,7 +328,7 @@ def request_send_mail_post(email):  # noqa: E501
         msg['In-Reply-To'] = email.forward_id
         msg['References'] = email.forward_id
     msg['Subject'] = email.subject
-    
+
     # Add additional headers
     for header in email.headers:
         if header.key not in msg:
