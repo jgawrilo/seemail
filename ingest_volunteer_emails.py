@@ -38,9 +38,18 @@ def ingest_volunteer_inbox(vol, word_indices):
             byte_message = bytes.fromhex(temp["message"])
             email_json = eml_parser.eml_parser.decode_email_b(byte_message,
                          include_raw_body=True, include_attachment_data=True)
-            print(email_json["header"]["from"])
+            print(email_json["header"]["to"])
+            if inbox not in email_json["header"]["to"]:
+                email_json["header"]["to"] = [inbox,] + email_json["header"]["to"]
+                print(email_json["header"]["to"])
             print(type(email_json["header"]["date"]), str(email_json["header"]["date"]))
-            features = ec.featurize_email(email_json, word_indices, db_file)
+            if email_json["body"] == []:
+                continue
+            try:
+                features = ec.featurize_email(email_json, word_indices, db_file)
+            except:
+                print(email_json["body"])
+                raise
             if new_features == []:
                 new_features = features
             else:
