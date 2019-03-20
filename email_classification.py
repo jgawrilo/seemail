@@ -260,12 +260,14 @@ if __name__ == "__main__":
 
     # Get filenames from database
     #conn = sql.connect("/home/user-data/mail/jpl_emails.sqlite")
-    conn = sql.connect("/home/rosteen/Work/seemail/jpl_emails.sqlite")
+    conn = sql.connect("jpl_emails.sqlite")
     cur = conn.cursor()
     filenames = []
     res = cur.execute("select * from abuse").fetchall()
     for row in res:
         filenames.append(row[2])
+    cur.close()
+    conn.close()
 
     # Load list of words for word frequency features
     if args.words:
@@ -295,7 +297,7 @@ if __name__ == "__main__":
         with open(fname, "r") as f:
             email_json = json.load(f)
         if not args.features:
-            features = featurize_email(email_json, word_indices, cur, args.graph)
+            features = featurize_email(email_json, word_indices, "jpl_emails.sqlite")
             if features is None:
                 print(fname)
                 n_bad += 1
