@@ -38,7 +38,7 @@ def build_network_graph(from_address, to_addresses, email_ts, db_file):
     conn = sql.connect(db_file)
     cur = conn.cursor()
     from_ind = ng.email_address_index(cur, conn, from_address)
-    to_inds
+    to_inds = []
     for to_address in to_addresses:
         to_ind = ng.email_address_index(cur, conn, to_address)
         to_inds.append(to_ind)
@@ -50,12 +50,11 @@ def build_network_graph(from_address, to_addresses, email_ts, db_file):
 
     conn.commit()
 
-    cur.close()
-    conn.close()
-
     # Build and return networkx graph object
     G = nx.DiGraph()
     res = cur.execute("select from_index, to_index, timestamp from email_edges").fetchall()
+    cur.close()
+    conn.close()
     for row in res:
         G = ng.process_edge(G, row[0], row[1], row[2])
     return G, from_ind, to_inds[0]
@@ -200,8 +199,12 @@ def featurize_email(email_json, word_indices, db_file):
             encoded_words[word_indices[word[0]]] = word[1]
 
     # Unix timestamp of email
-    email_ts = int((dparse(email_json["header"]["date"]) -
-                pytz.utc.localize(datetime(1970,1,1))).total_seconds())
+    if type(email_json["header"]["date"]) == datetime:
+        email_ts = int((email_json["header"]["date"] -
+                    pytz.utc.localize(datetime(1970,1,1))).total_seconds())
+    else:
+        email_ts = int((dparse(email_json["header"]["date"]) -
+                    pytz.utc.localize(datetime(1970,1,1))).total_seconds())
 
     # Get features from email network graph structure/user state
     #from_email, to_emails = ee.parse_from_to(email_json["body"])
@@ -224,7 +227,6 @@ def featurize_email(email_json, word_indices, db_file):
         # Calculate features from graph structure
         graph_features = get_graph_features(from_ind, to_ind, email_ts, G)
 
-    # Return updated graph and numpy array of features
     return np.array(att_extensions + [n_jpl, n_outside, subj_chars, subj_words, n_links] + graph_features + encoded_words)
 
 ###############################################################################
