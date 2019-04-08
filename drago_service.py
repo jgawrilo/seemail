@@ -50,7 +50,8 @@ from rq import Queue
 from requests.exceptions import ReadTimeout
 import logging
 
-sys.path.append('/home/rosteen/seemail/server_stub/controllers/')
+sys.path.append('/root/mailinabox/management/')
+sys.path.append('/home/rosteen/seemail/server_stub/swagger_server/controllers/')
 import default_controller
 #import server_code.default_controller as default_controller
 
@@ -250,9 +251,16 @@ def unregister_collector(conf):
   resp = stub.Unregister(d)
   logging.info("Unregistered Collector.")
 
-def start_collector(conf,rerun):
+def start_collector(conf, rerun):
   logging.basicConfig(filename=conf["log_file"],level=logging.INFO,format='%(asctime)s %(message)s')
   logging.info("Starting Collector.")
+
+  # Retrieve SSL certificate
+  with open('server.key', 'rb') as f:
+    private_key = f.read()
+  with open('server.crt', 'rb') as f:
+    certificate_chain = f.read()
+  server_credentials = grpc.ssl_server_credentials(((private_key, certificate_chain,),))
 
   server = grpc.server(futures.ThreadPoolExecutor(max_workers=3))
 
@@ -261,6 +269,7 @@ def start_collector(conf,rerun):
   healthcheck_pb2_grpc.add_HealthServicer_to_server(my_collector,server)
 
   server.add_insecure_port('[::]:50051')
+  server.add_secure_port('[::]:50052', server_credentials)
   server.start()
 
   logging.info("Collector Started")
@@ -291,9 +300,4 @@ if __name__ == '__main__':
     start_collector(conf, sys.argv[3])
   elif sys.argv[2] == "U":
     unregister_collector(conf)
-
-
-
-
-
 
