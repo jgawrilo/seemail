@@ -63,7 +63,7 @@ seemail_path = '/home/rosteen/seemail'
 _ONE_YEAR_IN_SECONDS = 60 * 60 * 24 * 365
 
 
-class Seemail_Collector(collector_pb2_grpc.CollectorServicer,healthcheck_pb2_grpc.HealthServicer):
+class Seemail_Collector(collector_pb2_grpc.CollectorServicer, healthcheck_pb2_grpc.HealthServicer):
 
 
   def __init__(self,conf,rerun):
@@ -225,8 +225,9 @@ class Seemail_Collector(collector_pb2_grpc.CollectorServicer,healthcheck_pb2_grp
     responses = [self._stop_rule(x) for x in request.rules]
     return collector_pb2.TaskResponses(responses=responses)
 
-def register_collector(conf):
-  channel = grpc.insecure_channel(conf["manager"])
+def register_collector(conf, credentials):
+  #channel = grpc.insecure_channel(conf["manager"])
+  channel = grpc.secure_channel(conf["manager"], credentials)
   stub = manager_pb2_grpc.ManagerStub(channel)
   d = manager_pb2.RegistrationInfo(uri=conf["collector_url"],
       network=manager_pb2.VK,
@@ -266,10 +267,10 @@ def start_collector(conf, rerun):
 
   my_collector = Seemail_Collector(conf,rerun)
   collector_pb2_grpc.add_CollectorServicer_to_server(my_collector, server)
-  healthcheck_pb2_grpc.add_HealthServicer_to_server(my_collector,server)
+  healthcheck_pb2_grpc.add_HealthServicer_to_server(my_collector, server)
 
-  server.add_insecure_port('[::]:50051')
-  server.add_secure_port('[::]:50052', server_credentials)
+  #server.add_insecure_port('[::]:50051')
+  server.add_secure_port('[::]:50051', server_credentials)
   server.start()
 
   logging.info("Collector Started")
@@ -278,10 +279,12 @@ def start_collector(conf, rerun):
   time.sleep(2)
 
   try:
-    register_collector(conf)
+    channel_credentials = grpc.ssl_channel_credentials(root_certificates=certificate_chain)
+    register_collector(conf, channel_credentials)
   except grpc._channel._Rendezvous:
     logging.error("Something wrong with endpoint?")
     sys.exit(1)
+  
   try:
     while True:
       time.sleep(_ONE_YEAR_IN_SECONDS)
