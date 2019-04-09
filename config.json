@@ -1,6 +1,6 @@
 {
-    "manager":"localhost:31111",
-    "collector_url":"localhost:50051",
+    "manager":"box.chunkman.com:31111",
+    "collector_url":"box.chunkman.com:50051",
     "log_file":"output.log",
     "use_tor":"true",
     "kafka":"localhost:9092",

@@ -44,6 +44,7 @@ import redis
 
 import json
 import requests
+import re
 
 from rq import Queue
 
@@ -52,6 +53,7 @@ import logging
 
 sys.path.append('/root/mailinabox/management/')
 sys.path.append('/home/rosteen/seemail/server_stub/swagger_server/controllers/')
+import utils
 import default_controller
 #import server_code.default_controller as default_controller
 
@@ -83,31 +85,30 @@ class Seemail_Collector(collector_pb2_grpc.CollectorServicer, healthcheck_pb2_gr
     #TODO: ensure asked for email address is actually in system
     #TODO: return collector_pb2.TaskResponse(rule=request,error=collector_pb2.TaskResponse.INVALID_VALUE) if bad
 
-    email_address = self._email_from_request(request)
+    #email_address = self._email_from_request(request)
+    email_address = str(request.id)
 
-    if email_address:
-      all_users = default_controller.get_all_users()
-      email_addresses = [user["email_address"] for user in all_users]
-      if email_address not in email_addresses:
-        logging.info(request.id + " -- " + request.entity.name + " is not valid")
-        return collector_pb2.TaskResponse(rule=request,error=collector_pb2.TaskResponse.INVALID_VALUE)
+    all_users = default_controller.get_all_users()
+    logging.info("Users returned by default_controller: {}".format(all_users))
+    email_addresses = [str(user.email_address) for user in all_users]
+    if email_address not in email_addresses:
+      logging.info(request.id + " -- " + request.entity.name + " is not valid")
+      return collector_pb2.TaskResponse(rule=request,error=collector_pb2.TaskResponse.INVALID_VALUE)
 
-      response = collector_pb2.TaskResponse(rule=request,
-          error=collector_pb2.TaskResponse.NONE)
+    response = collector_pb2.TaskResponse(rule=request,
+        error=collector_pb2.TaskResponse.NONE)
 
-      logging.info(request.id + " -- " + request.entity.name + " is valid:")
+    logging.info(request.id + " -- " + request.entity.name + " is valid:")
 
-      return collector_pb2.TaskResponse(rule=request,
-                error=collector_pb2.TaskResponse.NONE)
+    return collector_pb2.TaskResponse(rule=request, error=collector_pb2.TaskResponse.NONE)
 
-    return collector_pb2.TaskResponse(rule=request,error=collector_pb2.TaskResponse.INVALID_VALUE)
-
+  # Check basic email address structure: an @ sign and at least one . after
   def _email_from_request(self, request):
     if type(request.entity.id) == str:
-      if re.search("@", request.entity.id) is not None:
+      if re.match("r[^@]+@[^@]+\.[^@]+", request.entity.id):
         return request.entity.id
     else:
-      if re.search("@", request.entity.name) is not None:
+      if re.match("r[^@]+@[^@]+\.[^@]+", request.entity.name):
         return request.entity.name
     logging.error("Request does not appear to contain an email address in id or name")
     return None
@@ -120,7 +121,7 @@ class Seemail_Collector(collector_pb2_grpc.CollectorServicer, healthcheck_pb2_gr
     logging.info("\n\nValidateRule -> ")
     logging.info(request)
 
-    return self.validate_name(request)
+    return self._validate_name(request)
 
     #TODO: Validate multiple rules
 
@@ -236,7 +237,7 @@ def register_collector(conf, credentials):
     )
   resp = stub.Register(d)
   logging.info("Registered Collector.")
-  time.sleep(60)
+  time.sleep(20)
 
   resp = stub.Initialize(d)
   logging.info("Initialized Collector.")
