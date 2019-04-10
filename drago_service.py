@@ -136,29 +136,29 @@ class Seemail_Collector(collector_pb2_grpc.CollectorServicer, healthcheck_pb2_gr
 
     # RGO - Change this to email address?
     # ENTITY REQUEST - name
-    email_address = self._email_from_request(request)
-    if email_address:
-      logging.info("Firing Entity Info: " + request.id + " " + request.entity.name)
+    #email_address = self._email_from_request(request)
+    email_address = request.id
+    logging.info("Firing Entity Info: " + request.id + " " + request.entity.name)
 
-      # Check to see if user already being watched
-      users_r = redis.StrictRedis(host='localhost', port=6379, db=1)
-      user_found = False
-      for key in users_r.scan_iter():
-          if key == email_address.encode('utf-8'):
-              user_found = True
-              break
+    # Check to see if user already being watched
+    users_r = redis.StrictRedis(host='localhost', port=6379, db=1)
+    user_found = False
+    for key in users_r.scan_iter():
+        if key == email_address.encode('utf-8'):
+            user_found = True
+            break
 
-      # Get the user's email history if they were not already being watched
-      if not user_found:
-          # This sends the email throught he history kafka queue
-          logging.info("Sending user email history to history queue")
-          res = default_controller.request_mail_history_get([email_address],
-                  request_key, 350000000)
-          res = default_controller.monitor_users_get([email_address])
+    # Get the user's email history if they were not already being watched
+    if not user_found:
+        # This sends the email throught he history kafka queue
+        logging.info("Sending user email history to history queue")
+        res = default_controller.request_mail_history_get([email_address],
+                request_key, 350000000)
+        res = default_controller.monitor_users_get([email_address])
 
-      # Otherwise return that we already were watching the user
-      else:
-          logging.info("User email was already being monitored")
+    # Otherwise return that we already were watching the user
+    else:
+        logging.info("User email was already being monitored")
 
       # self.q.enqueue(utils.process_entity,args=(
       #   self.access_tokens,
@@ -173,8 +173,8 @@ class Seemail_Collector(collector_pb2_grpc.CollectorServicer, healthcheck_pb2_gr
       #   timeout=_ONE_YEAR_IN_SECONDS,
       #   at_front = True
       # )
-      return collector_pb2.TaskResponse(rule=request,
-          error=collector_pb2.TaskResponse.NONE)
+    return collector_pb2.TaskResponse(rule=request,
+        error=collector_pb2.TaskResponse.NONE)
 
 
     logging.error("Collection type caused a fall through.")
@@ -236,14 +236,26 @@ def register_collector(conf, credentials):
       collection_modes=[manager_pb2.POLLING]
     )
   resp = stub.Register(d)
+  logging.info(resp)
   logging.info("Registered Collector.")
   time.sleep(20)
 
   resp = stub.Initialize(d)
+  logging.info(resp)
   logging.info("Initialized Collector.")
 
 def unregister_collector(conf):
-  channel = grpc.insecure_channel(conf["manager"])
+  #channel = grpc.insecure_channel(conf["manager"])
+
+  if re.search("qntfy", conf["manager"]) is not None:
+    with open('com.qntfy.qcs.drago-registrator-ased-dev.crt.txt', 'rb') as f:
+      qntfy_creds = f.read()
+      channel_credentials = grpc.ssl_channel_credentials(root_certificates=qntfy_creds)
+  else:
+    with open('server.crt', 'rb') as f:
+      certificate_chain = f.read()
+      channel_credentials = grpc.ssl_channel_credentials(root_certificates=certificate_chain)
+  channel = grpc.secure_channel(conf["manager"], channel_credentials)
   stub = manager_pb2_grpc.ManagerStub(channel)
   d = manager_pb2.RegistrationInfo(uri=conf["collector_url"],
       network=manager_pb2.VK,
@@ -279,8 +291,14 @@ def start_collector(conf, rerun):
   # Just because
   time.sleep(2)
 
+  # Connect to manager
   try:
-    channel_credentials = grpc.ssl_channel_credentials(root_certificates=certificate_chain)
+    if re.search("qntfy", conf["manager"]) is not None:
+      with open('com.qntfy.qcs.drago-registrator-ased-dev.crt.txt', 'rb') as f:
+        qntfy_creds = f.read()
+      channel_credentials = grpc.ssl_channel_credentials(root_certificates=qntfy_creds)
+    else:
+      channel_credentials = grpc.ssl_channel_credentials(root_certificates=certificate_chain)
     register_collector(conf, channel_credentials)
   except grpc._channel._Rendezvous:
     logging.error("Something wrong with endpoint?")
