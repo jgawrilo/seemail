@@ -31,7 +31,7 @@ from email.mime.image import MIMEImage
 
 # mailinabox management functions
 import sys
-sys.path.append('/home/andrew/mailinabox/management/')
+sys.path.append('/root/mailinabox/management/')
 import utils
 import mailconfig
 
@@ -126,7 +126,7 @@ def create_bot_account_post(user):  # noqa: E501
         reactivating = True
 
     # Load bot credentials file
-    with open('/home/andrew/seemail/seemail/server_code/bcr.json', 'r') as f:
+    with open('/home/rosteen/seemail/server_code/bcr.json', 'r') as f:
         creds = json.load(f)
 
     # Generate a password and create the actual email account
@@ -135,7 +135,7 @@ def create_bot_account_post(user):  # noqa: E501
     else:
         pwd = generate_password()
         creds[user.email_address] = pwd
-        with open('/home/andrew/seemail/seemail/server_code/bcr.json', 'w') as f:
+        with open('/home/rosteen/seemail/server_code/bcr.json', 'w') as f:
             json.dump(creds, f)
 
     # Add mailbox for bot
@@ -345,7 +345,7 @@ def request_send_mail_post(email):  # noqa: E501
         msg.attach(part)
 
     # Load bot credentials file
-    with open('/home/andrew/seemail/seemail/server_code/bcr.json', 'r') as f:
+    with open('/home/rosteen/seemail/server_code/bcr.json', 'r') as f:
         creds = json.load(f)
         pwd = creds[email.sent_from.email_address]
     s.connect('localhost:587')
@@ -407,7 +407,7 @@ def request_send_multipart_mail_post(email):  # noqa: E501
             return False
 
     # Load bot credentials file
-    with open('/home/andrew/seemail/seemail/server_code/bcr.json', 'r') as f:
+    with open('/home/rosteen/seemail/server_code/bcr.json', 'r') as f:
         creds = json.load(f)
         pwd = creds[email.sent_from.email_address]
     s.connect('localhost:587')
