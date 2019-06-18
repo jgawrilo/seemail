@@ -5,6 +5,7 @@ import redis
 from swagger_server.models.email import Email  # noqa: E501
 from swagger_server.models.error import Error  # noqa: E501
 from swagger_server.models.user import User  # noqa: E501
+from swagger_server.models.multipart_email import MultipartEmail # noqa: E501
 from swagger_server import util
 
 import imbox
@@ -26,10 +27,11 @@ import smtplib
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
 
 # mailinabox management functions
 import sys
-sys.path.append('/root/mailinabox/management/')
+sys.path.append('/home/andrew/mailinabox/management/')
 import utils
 import mailconfig
 
@@ -124,7 +126,7 @@ def create_bot_account_post(user):  # noqa: E501
         reactivating = True
 
     # Load bot credentials file
-    with open('/home/rosteen/seemail/server_code/bcr.json', 'r') as f:
+    with open('/home/andrew/seemail/seemail/server_code/bcr.json', 'r') as f:
         creds = json.load(f)
 
     # Generate a password and create the actual email account
@@ -133,7 +135,7 @@ def create_bot_account_post(user):  # noqa: E501
     else:
         pwd = generate_password()
         creds[user.email_address] = pwd
-        with open('/home/rosteen/seemail/server_code/bcr.json', 'w') as f:
+        with open('/home/andrew/seemail/seemail/server_code/bcr.json', 'w') as f:
             json.dump(creds, f)
 
     # Add mailbox for bot
@@ -343,7 +345,62 @@ def request_send_mail_post(email):  # noqa: E501
         msg.attach(part)
 
     # Load bot credentials file
-    with open('/home/rosteen/seemail/server_code/bcr.json', 'r') as f:
+    with open('/home/andrew/seemail/seemail/server_code/bcr.json', 'r') as f:
+        creds = json.load(f)
+        pwd = creds[email.sent_from.email_address]
+    s.connect('localhost:587')
+    s.starttls()
+    s.login(email.sent_from.email_address, pwd)
+
+    # Send it!
+    s.sendmail(email.sent_from.email_address, recipients, msg.as_string())
+    s.close()
+    logging.info("Sent email from {} to {}".format(email.sent_to, email.sent_from))
+    return True
+
+
+def request_send_multipart_mail_post(email):  # noqa: E501
+    """Send the multipart-email.
+
+     # noqa: E501
+
+    :param email: The email to send.
+    :type multipart_email: dict | bytes
+
+    :rtype: bool
+    """
+    if connexion.request.is_json:
+        email = MultipartEmail.from_dict(connexion.request.get_json())  # noqa: E501
+
+    s = smtplib.SMTP("localhost:587")
+    # Build MIME email from email object? Need to double check input format
+    msg = MIMEMultipart()
+    recipients = []
+    for field in (email.sent_to, email.sent_cc, email.sent_bcc):
+    	recipients += [x.email_address for x in field]
+    msg['To'] = ', '.join([x.email_address for x in email.sent_to])
+    msg['CC'] = ', '.join([x.email_address for x in email.sent_cc])
+    msg['From'] = "{} {} <{}>".format(email.sent_from.first_name,
+        email.sent_from.last_name, email.sent_from.email_address)
+    if email.reply_to_id != '':
+        msg['In-Reply-To'] = email.reply_to_id
+        msg['References'] = email.reply_to_id
+    elif email.forward_id != '':
+        msg['In-Reply-To'] = email.forward_id
+        msg['References'] = email.forward_id
+    msg['Subject'] = email.subject
+
+    # Add additional headers
+    for header in email.headers:
+        if header.key not in msg:
+            msg.add_header(header.key, header.value)
+
+    msg, err = parseMultipartEmailBody(msg, email.body)
+    if err != "" and err != None:
+        logging.error("Error building message body")
+
+    # Load bot credentials file
+    with open('/home/andrew/seemail/seemail/server_code/bcr.json', 'r') as f:
         creds = json.load(f)
         pwd = creds[email.sent_from.email_address]
     s.connect('localhost:587')
@@ -374,3 +431,49 @@ def unmonitor_users_get(email_addresses):  # noqa: E501
         results.append(res_codes[res])
     logging.info("Unmonitored list of users: {}".format(email_addresses))
     return results
+
+def parseMultipartEmailBody(msg, body):
+    partType = body["partType"]
+    if partType == 'multipart/mixed':
+        # Throw error - Cannot be an inner type
+        return msg, "Message is already of type multipart/mixed, cannot be an inner type"
+    elif partType == 'multipart/alternative':
+        # Add part multipart/alternative then call parseMultipartEmailBody with array elements
+        part = MIMEMultipart('alternative')
+        for x in body["bodyArray"]:
+            part, err = parseMultipartEmailBody(part, x)
+        msg.attach(part)
+    elif partType == 'multipart/related':
+        # Add part multipart/alternative then call parseMultipartEmailBody with array elements
+        part = MIMEMultipart('related')
+        for x in body["bodyArray"]:
+            part, err = parseMultipartEmailBody(part, x)
+        msg.attach(part)
+        return msg, err
+        # return msg
+    elif partType == 'text/plain':
+        # Add part text/plain
+        part = MIMEText(body["bodyString"], 'plain')
+        msg.attach(part)
+        # return msg
+    elif partType == 'text/html':
+        # Add part text/html
+        part = MIMEText(body["bodyString"], 'html')
+        msg.attach(part)
+        # return msg
+    elif partType.split('/')[0] == 'image':
+        img = MIMEImage(base64.b64decode(body["bodyString"]))
+        msg.attach(img)
+    elif partType == 'attachment':
+        part = MIMEApplication(base64.b64decode(body["bodyString"]), Name = body["name"])
+        part['Content-Disposition'] = 'attachment; filename="{}"'.format(body["name"])
+        msg.attach(part)
+    else:
+        # Anything else assume attachment
+        # Add part
+        part = MIMEApplication(base64.b64decode(body["bodyString"]), Name = body["name"])
+        part['Content-Disposition'] = 'attachment; filename="{}"'.format(body["name"])
+        msg.attach(part)
+        # return msg
+    return msg, None
+    
