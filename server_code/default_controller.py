@@ -403,6 +403,7 @@ def request_send_multipart_mail_post(email):  # noqa: E501
         msg, errors = getMultipartEmailBody(msg, email.body, errors)
         for error in errors:
             logging.error(error)
+        if len(errors) > 0:
             return False
 
     # Load bot credentials file
