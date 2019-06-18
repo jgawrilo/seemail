@@ -373,8 +373,12 @@ def request_send_multipart_mail_post(email):  # noqa: E501
         email = MultipartEmail.from_dict(connexion.request.get_json())  # noqa: E501
 
     s = smtplib.SMTP("localhost:587")
-    # Build MIME email from email object? Need to double check input format
-    msg = MIMEMultipart()
+    
+    msg, multipart, error = getEmailBase(email.body)
+    if error != None:
+        logging.error(error)
+        return False
+    
     recipients = []
     for field in (email.sent_to, email.sent_cc, email.sent_bcc):
     	recipients += [x.email_address for x in field]
@@ -394,10 +398,12 @@ def request_send_multipart_mail_post(email):  # noqa: E501
     for header in email.headers:
         if header.key not in msg:
             msg.add_header(header.key, header.value)
-
-    msg, err = parseMultipartEmailBody(msg, email.body)
-    if err != "" and err != None:
-        logging.error("Error building message body")
+    if multipart:
+        errors = []
+        msg, errors = getMultipartEmailBody(msg, email.body, errors)
+        for error in errors:
+            logging.error(error)
+            return False
 
     # Load bot credentials file
     with open('/home/andrew/seemail/seemail/server_code/bcr.json', 'r') as f:
@@ -432,48 +438,142 @@ def unmonitor_users_get(email_addresses):  # noqa: E501
     logging.info("Unmonitored list of users: {}".format(email_addresses))
     return results
 
-def parseMultipartEmailBody(msg, body):
+def getMultipartEmailBody(msg, body, errors):
+    if "partType" not in body and isinstance(body["partType"], str):
+        errors.append("Body must have key partType of type string")
+        return msg, errors
+    partType = body["partType"]
+    if "bodyArray" not in body and isinstance(body["bodyArray"], list):
+        errors.append(partType + " must have key bodyArray of type list")
+        return msg, errors
+    # Add part multipart/alternative then call parseMultipartEmailBody with array elements
+    part = msg
+    for x in body["bodyArray"]:
+        msg, err = parseMultipartEmailBody(msg, x, errors)
+        errors = errors + err
+    return msg, errors
+
+def parseMultipartEmailBody(msg, body, errors):
+    if "partType" not in body and isinstance(body["partType"], str):
+        errors.append("Body must have key partType of type string")
+        return msg, errors
     partType = body["partType"]
     if partType == 'multipart/mixed':
         # Throw error - Cannot be an inner type
-        return msg, "Message is already of type multipart/mixed, cannot be an inner type"
+        errors.append("Message is already of type multipart/mixed, cannot be an inner type")
+        return msg, errors
     elif partType == 'multipart/alternative':
+        error = verifyBodyArray(partType, body);
+        if error is not None:
+            errors.append(error)
+            return msg, errors
         # Add part multipart/alternative then call parseMultipartEmailBody with array elements
         part = MIMEMultipart('alternative')
         for x in body["bodyArray"]:
-            part, err = parseMultipartEmailBody(part, x)
+            part, errors = parseMultipartEmailBody(part, x, errors)
         msg.attach(part)
     elif partType == 'multipart/related':
+        error = verifyBodyArray(partType, body);
+        if error is not None:
+            errors.append(error)
+            return msg, errors
         # Add part multipart/alternative then call parseMultipartEmailBody with array elements
         part = MIMEMultipart('related')
         for x in body["bodyArray"]:
-            part, err = parseMultipartEmailBody(part, x)
+            part, err = parseMultipartEmailBody(part, x, errors)
         msg.attach(part)
         return msg, err
         # return msg
     elif partType == 'text/plain':
         # Add part text/plain
+        error = verifyBodyString(partType, body);
+        if error is not None:
+            errors.append(error)
+            return msg, errors
         part = MIMEText(body["bodyString"], 'plain')
         msg.attach(part)
         # return msg
     elif partType == 'text/html':
         # Add part text/html
+        error = verifyBodyString(partType, body);
+        if error is not None:
+            errors.append(error)
+            return msg, errors
         part = MIMEText(body["bodyString"], 'html')
         msg.attach(part)
         # return msg
-    elif partType.split('/')[0] == 'image':
+    elif "/" in partType and partType.split('/')[0] == 'image':
+        error = verifyBodyString(partType, body);
+        if error is not None:
+            errors.append(error)
+            return msg, errors
         img = MIMEImage(base64.b64decode(body["bodyString"]))
         msg.attach(img)
     elif partType == 'attachment':
+        error = verifyBodyString(partType, body);
+        if error is not None:
+            errors.append(error)
+            return msg, errors
         part = MIMEApplication(base64.b64decode(body["bodyString"]), Name = body["name"])
         part['Content-Disposition'] = 'attachment; filename="{}"'.format(body["name"])
         msg.attach(part)
     else:
         # Anything else assume attachment
         # Add part
+        error = verifyBodyString(partType, body);
+        if error is not None:
+            errors.append(error)
+            return msg, errors
         part = MIMEApplication(base64.b64decode(body["bodyString"]), Name = body["name"])
         part['Content-Disposition'] = 'attachment; filename="{}"'.format(body["name"])
         msg.attach(part)
         # return msg
-    return msg, None
-    
+    return msg, errors
+
+
+def getEmailBase(body):
+    if "partType" not in body and isinstance(body["partType"], str):
+        return msg, "Body must have key partType of type string"
+    partType = body["partType"]
+    if partType == 'multipart/mixed':
+        error = verifyBodyArray(partType, body);
+        if error is not None:
+            return None, None, error
+        # Add part multipart/alternative then call parseMultipartEmailBody with array elements
+        return MIMEMultipart(), True, None
+    elif partType == 'multipart/alternative':
+        error = verifyBodyArray(partType, body);
+        if error is not None:
+            return None, None, error
+        # Add part multipart/alternative then call parseMultipartEmailBody with array elements
+        return MIMEMultipart('alternative'), True, None
+    elif partType == 'multipart/related':
+        error = verifyBodyArray(partType, body);
+        if error is not None:
+            return None, None, error
+        # Add part multipart/alternative then call parseMultipartEmailBody with array elements
+        return MIMEMultipart('related'), True, None
+    elif partType == 'text/plain':
+         # Add part text/html
+        error = verifyBodyString(partType, body);
+        if error is not None:
+            return None, None, error
+        return MIMEText(body["bodyString"], 'plain'), False, None
+    elif partType == 'text/html':
+        # Add part text/html
+        error = verifyBodyString(partType, body);
+        if error is not None:
+            return None, None, error
+        return MIMEText(body["bodyString"], 'html'), False, None
+    # Anything else error
+    return None, None, "Error creating message body, first element had incorrect type: " + partType
+
+def verifyBodyArray(partType, body):
+    if "bodyArray" not in body and not isinstance(body["bodyArray"], list):
+        return partType + " must have key bodyString of type string"
+    return None
+
+def verifyBodyString(partType, body):
+    if "bodyString" not in body and not isinstance(body["bodyString"], str):
+        return partType + " must have key bodyString of type str"
+    return None
