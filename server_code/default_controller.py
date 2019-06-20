@@ -5,6 +5,7 @@ import redis
 from swagger_server.models.email import Email  # noqa: E501
 from swagger_server.models.error import Error  # noqa: E501
 from swagger_server.models.user import User  # noqa: E501
+from swagger_server.models.multipart_email import MultipartEmail # noqa: E501
 from swagger_server import util
 
 import imbox
@@ -26,6 +27,7 @@ import smtplib
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
 
 # mailinabox management functions
 import sys
@@ -356,6 +358,68 @@ def request_send_mail_post(email):  # noqa: E501
     logging.info("Sent email from {} to {}".format(email.sent_to, email.sent_from))
     return True
 
+
+def request_send_multipart_mail_post(email):  # noqa: E501
+    """Send the multipart-email.
+
+     # noqa: E501
+
+    :param email: The email to send.
+    :type multipart_email: dict | bytes
+
+    :rtype: bool
+    """
+    if connexion.request.is_json:
+        email = MultipartEmail.from_dict(connexion.request.get_json())  # noqa: E501
+
+    s = smtplib.SMTP("localhost:587")
+    
+    msg, multipart, error = getEmailBase(email.body)
+    if error != None:
+        logging.error(error)
+        return False
+    
+    recipients = []
+    for field in (email.sent_to, email.sent_cc, email.sent_bcc):
+    	recipients += [x.email_address for x in field]
+    msg['To'] = ', '.join([x.email_address for x in email.sent_to])
+    msg['CC'] = ', '.join([x.email_address for x in email.sent_cc])
+    msg['From'] = "{} {} <{}>".format(email.sent_from.first_name,
+        email.sent_from.last_name, email.sent_from.email_address)
+    if email.reply_to_id != '':
+        msg['In-Reply-To'] = email.reply_to_id
+        msg['References'] = email.reply_to_id
+    elif email.forward_id != '':
+        msg['In-Reply-To'] = email.forward_id
+        msg['References'] = email.forward_id
+    msg['Subject'] = email.subject
+
+    # Add additional headers
+    for header in email.headers:
+        if header.key not in msg:
+            msg.add_header(header.key, header.value)
+    if multipart:
+        errors = []
+        msg, errors = getMultipartEmailBody(msg, email.body, errors)
+        for error in errors:
+            logging.error(error)
+        if len(errors) > 0:
+            return False
+
+    # Load bot credentials file
+    with open('/home/rosteen/seemail/server_code/bcr.json', 'r') as f:
+        creds = json.load(f)
+        pwd = creds[email.sent_from.email_address]
+    s.connect('localhost:587')
+    s.starttls()
+    s.login(email.sent_from.email_address, pwd)
+
+    # Send it!
+    s.sendmail(email.sent_from.email_address, recipients, msg.as_string())
+    s.close()
+    logging.info("Sent email from {} to {}".format(email.sent_to, email.sent_from))
+    return True
+
 def unmonitor_users_get(email_addresses):  # noqa: E501
     """Remove users from set to monitor email for (sent to kafka)
 
@@ -374,3 +438,143 @@ def unmonitor_users_get(email_addresses):  # noqa: E501
         results.append(res_codes[res])
     logging.info("Unmonitored list of users: {}".format(email_addresses))
     return results
+
+def getMultipartEmailBody(msg, body, errors):
+    if "partType" not in body and isinstance(body["partType"], str):
+        errors.append("Body must have key partType of type string")
+        return msg, errors
+    partType = body["partType"]
+    if "bodyArray" not in body and isinstance(body["bodyArray"], list):
+        errors.append(partType + " must have key bodyArray of type list")
+        return msg, errors
+    # Add part multipart/alternative then call parseMultipartEmailBody with array elements
+    part = msg
+    for x in body["bodyArray"]:
+        msg, err = parseMultipartEmailBody(msg, x, errors)
+        errors = errors + err
+    return msg, errors
+
+def parseMultipartEmailBody(msg, body, errors):
+    if "partType" not in body and isinstance(body["partType"], str):
+        errors.append("Body must have key partType of type string")
+        return msg, errors
+    partType = body["partType"]
+    if partType == 'multipart/mixed':
+        # Throw error - Cannot be an inner type
+        errors.append("Message is already of type multipart/mixed, cannot be an inner type")
+        return msg, errors
+    elif partType == 'multipart/alternative':
+        error = verifyBodyArray(partType, body);
+        if error is not None:
+            errors.append(error)
+            return msg, errors
+        # Add part multipart/alternative then call parseMultipartEmailBody with array elements
+        part = MIMEMultipart('alternative')
+        for x in body["bodyArray"]:
+            part, errors = parseMultipartEmailBody(part, x, errors)
+        msg.attach(part)
+    elif partType == 'multipart/related':
+        error = verifyBodyArray(partType, body);
+        if error is not None:
+            errors.append(error)
+            return msg, errors
+        # Add part multipart/alternative then call parseMultipartEmailBody with array elements
+        part = MIMEMultipart('related')
+        for x in body["bodyArray"]:
+            part, err = parseMultipartEmailBody(part, x, errors)
+        msg.attach(part)
+        return msg, err
+        # return msg
+    elif partType == 'text/plain':
+        # Add part text/plain
+        error = verifyBodyString(partType, body);
+        if error is not None:
+            errors.append(error)
+            return msg, errors
+        part = MIMEText(body["bodyString"], 'plain')
+        msg.attach(part)
+        # return msg
+    elif partType == 'text/html':
+        # Add part text/html
+        error = verifyBodyString(partType, body);
+        if error is not None:
+            errors.append(error)
+            return msg, errors
+        part = MIMEText(body["bodyString"], 'html')
+        msg.attach(part)
+        # return msg
+    elif "/" in partType and partType.split('/')[0] == 'image':
+        error = verifyBodyString(partType, body);
+        if error is not None:
+            errors.append(error)
+            return msg, errors
+        img = MIMEImage(base64.b64decode(body["bodyString"]))
+        msg.attach(img)
+    elif partType == 'attachment':
+        error = verifyBodyString(partType, body);
+        if error is not None:
+            errors.append(error)
+            return msg, errors
+        part = MIMEApplication(base64.b64decode(body["bodyString"]), Name = body["name"])
+        part['Content-Disposition'] = 'attachment; filename="{}"'.format(body["name"])
+        msg.attach(part)
+    else:
+        # Anything else assume attachment
+        # Add part
+        error = verifyBodyString(partType, body);
+        if error is not None:
+            errors.append(error)
+            return msg, errors
+        part = MIMEApplication(base64.b64decode(body["bodyString"]), Name = body["name"])
+        part['Content-Disposition'] = 'attachment; filename="{}"'.format(body["name"])
+        msg.attach(part)
+        # return msg
+    return msg, errors
+
+
+def getEmailBase(body):
+    if "partType" not in body and isinstance(body["partType"], str):
+        return msg, "Body must have key partType of type string"
+    partType = body["partType"]
+    if partType == 'multipart/mixed':
+        error = verifyBodyArray(partType, body);
+        if error is not None:
+            return None, None, error
+        # Add part multipart/alternative then call parseMultipartEmailBody with array elements
+        return MIMEMultipart(), True, None
+    elif partType == 'multipart/alternative':
+        error = verifyBodyArray(partType, body);
+        if error is not None:
+            return None, None, error
+        # Add part multipart/alternative then call parseMultipartEmailBody with array elements
+        return MIMEMultipart('alternative'), True, None
+    elif partType == 'multipart/related':
+        error = verifyBodyArray(partType, body);
+        if error is not None:
+            return None, None, error
+        # Add part multipart/alternative then call parseMultipartEmailBody with array elements
+        return MIMEMultipart('related'), True, None
+    elif partType == 'text/plain':
+         # Add part text/html
+        error = verifyBodyString(partType, body);
+        if error is not None:
+            return None, None, error
+        return MIMEText(body["bodyString"], 'plain'), False, None
+    elif partType == 'text/html':
+        # Add part text/html
+        error = verifyBodyString(partType, body);
+        if error is not None:
+            return None, None, error
+        return MIMEText(body["bodyString"], 'html'), False, None
+    # Anything else error
+    return None, None, "Error creating message body, first element had incorrect type: " + partType
+
+def verifyBodyArray(partType, body):
+    if "bodyArray" not in body and not isinstance(body["bodyArray"], list):
+        return partType + " must have key bodyString of type string"
+    return None
+
+def verifyBodyString(partType, body):
+    if "bodyString" not in body and not isinstance(body["bodyString"], str):
+        return partType + " must have key bodyString of type str"
+    return None
